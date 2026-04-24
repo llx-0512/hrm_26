@@ -13,7 +13,10 @@ public class WebUtil {
      */
     public static void renderString(HttpServletResponse response, String str){
         try{
-            response.setStatus(200);
+            // 只在状态码未设置时才设置为200，避免覆盖已设置的状态码（如401、403）
+            if (response.getStatus() == 200) {
+                response.setStatus(200);
+            }
             response.setContentType("application/json");
             response.setCharacterEncoding("utf-8");
             response.getWriter().print(str);

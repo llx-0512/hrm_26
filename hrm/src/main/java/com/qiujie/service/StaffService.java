@@ -237,6 +237,10 @@ public class StaffService extends ServiceImpl<StaffMapper, Staff> {
     public ResponseDTO queryInfo(Integer id) {
         StaffDeptVO staffInfo = this.staffMapper.queryInfo(id);
         if (staffInfo != null) {
+            // 计算年龄
+            if (staffInfo.getBirthday() != null) {
+                staffInfo.setAge(DateUtil.ageOfNow(staffInfo.getBirthday()));
+            }
             return Response.success(staffInfo);
         }
         return Response.error();

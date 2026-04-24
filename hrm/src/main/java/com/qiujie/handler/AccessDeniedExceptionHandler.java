@@ -18,6 +18,8 @@ import java.io.IOException;
 public class AccessDeniedExceptionHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) {
+        // 设置HTTP状态码为403
+        response.setStatus(403);
         String str = JSON.toJSONString(new ResponseDTO(BusinessStatusEnum.FORBIDDEN));
         // 给出异常提示信息
         WebUtil.renderString(response, str);

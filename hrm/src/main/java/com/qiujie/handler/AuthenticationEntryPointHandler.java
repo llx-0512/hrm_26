@@ -18,6 +18,8 @@ import java.io.IOException;
 public class AuthenticationEntryPointHandler implements AuthenticationEntryPoint {
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) {
+        // 设置HTTP状态码为401
+        response.setStatus(401);
         String str = JSON.toJSONString(new ResponseDTO(BusinessStatusEnum.UNAUTHORIZED));
         // 给出异常提示信息
         WebUtil.renderString(response, str);
