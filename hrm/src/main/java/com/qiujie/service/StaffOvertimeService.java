@@ -68,10 +68,67 @@ public class StaffOvertimeService extends ServiceImpl<StaffOvertimeMapper, Staff
     private DatetimeUtil datetimeUtil;
 
     public ResponseDTO add(StaffOvertime staffOvertime) {
+        // 验证员工ID不能为空
+        if (staffOvertime.getStaffId() == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证员工是否存在
+        Staff staff = staffMapper.selectById(staffOvertime.getStaffId());
+        if (staff == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班类型不能为空
+        if (staffOvertime.getTypeNum() == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班时长不能为空且必须大于0
+        if (staffOvertime.getTotalOvertime() == null || staffOvertime.getTotalOvertime().compareTo(BigDecimal.ZERO) <= 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班日期不能为空
+        if (staffOvertime.getOvertimeDate() == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班费不能为负数（如果提供了加班费）
+        if (staffOvertime.getOvertimeSalary() != null && staffOvertime.getOvertimeSalary().compareTo(BigDecimal.ZERO) < 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+
+        // 根据加班配置验证加班时长下限
+        BigDecimal lowerLimit = getOvertimeLowerLimit(staffOvertime.getTypeNum(), staff.getDeptId());
+        if (lowerLimit != null && staffOvertime.getTotalOvertime().compareTo(lowerLimit) < 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+
         if (save(staffOvertime)) {
-            return Response.success();
+            // 返回创建的记录ID
+            return Response.success(staffOvertime.getId());
         }
         return Response.error();
+    }
+
+    /**
+     * 获取加班类型的时长下限
+     */
+    private BigDecimal getOvertimeLowerLimit(OvertimeEnum typeNum, Integer deptId) {
+        if (deptId == null) {
+            return null;
+        }
+        Overtime overtime = overtimeMapper.selectOne(
+            new QueryWrapper<Overtime>()
+                .eq("type_num", typeNum)
+                .eq("dept_id", deptId)
+        );
+        if (overtime != null) {
+            // 如果以小时计算，下限是2小时
+            if (overtime.getCountType() == 0) {
+                return new BigDecimal(2);
+            } else {
+                // 如果以日计算，下限是8小时
+                return new BigDecimal(8);
+            }
+        }
+        return null;
     }
 
     public ResponseDTO delete(Integer id) {
@@ -90,6 +147,19 @@ public class StaffOvertimeService extends ServiceImpl<StaffOvertimeMapper, Staff
 
 
     public ResponseDTO edit(StaffOvertime staffOvertime) {
+        // 验证加班记录ID不能为空
+        if (staffOvertime.getId() == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班记录是否存在
+        StaffOvertime existing = getById(staffOvertime.getId());
+        if (existing == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证加班时长如果提供，必须大于0
+        if (staffOvertime.getTotalOvertime() != null && staffOvertime.getTotalOvertime().compareTo(BigDecimal.ZERO) <= 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         if (updateById(staffOvertime)) {
             return Response.success();
         }
@@ -98,6 +168,10 @@ public class StaffOvertimeService extends ServiceImpl<StaffOvertimeMapper, Staff
 
 
     public ResponseDTO query(Integer id) {
+        // 验证ID不能为null或非正数
+        if (id == null || id <= 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         StaffOvertime staffOvertime = getById(id);
         if (staffOvertime != null) {
             return Response.success(staffOvertime);
@@ -107,6 +181,14 @@ public class StaffOvertimeService extends ServiceImpl<StaffOvertimeMapper, Staff
 
 
     public ResponseDTO list(Integer current, Integer size, String name, Integer deptId, String month) {
+        // 验证页码不能小于1
+        if (current == null || current < 1) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证每页大小不能超过100
+        if (size == null || size < 1 || size > 100) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         IPage<StaffOvertimeVO> config = new Page<>(current, size);
         // 解决当搜索条件为空时，默认查询所有数据
         if (name == null) {
@@ -352,6 +434,10 @@ public class StaffOvertimeService extends ServiceImpl<StaffOvertimeMapper, Staff
      * @return
      */
     public ResponseDTO queryTimeOffDaysByStaffId(Integer id) {
+        // 验证员工ID不能为null或非正数
+        if (id == null || id <= 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         Long days = this.staffOvertimeMapper.selectCount(new QueryWrapper<StaffOvertime>().eq("staff_id", id).eq("status", OvertimeStatusEnum.TIME_OFF));
         return Response.success(days);
     }

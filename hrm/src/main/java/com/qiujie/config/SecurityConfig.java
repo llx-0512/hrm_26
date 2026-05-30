@@ -1,6 +1,7 @@
 package com.qiujie.config;
 
 import com.qiujie.filter.JwtAuthenticationFilter;
+import com.qiujie.filter.RequestRejectedExceptionFilter;
 import com.qiujie.handler.AccessDeniedExceptionHandler;
 import com.qiujie.handler.AuthenticationEntryPointHandler;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +67,8 @@ public class SecurityConfig {
                 .antMatchers("/login/**","/validate/code").permitAll() // 登录接口，验证码接口放行
                 //放行swagger
                 .antMatchers("/swagger-ui.html/**", "/swagger-resources/**", "/webjars/**", "/v2/**").permitAll()
+                //放行头像下载（无需权限）
+                .antMatchers("/docs/avatar/**").permitAll()
                 .anyRequest().authenticated() // 任意请求认证之后才能访问
                 .and()
                 .cors().configurationSource(corsConfigurationSource()) // 跨域
