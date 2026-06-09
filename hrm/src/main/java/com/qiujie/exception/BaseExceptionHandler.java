@@ -22,6 +22,7 @@ public class BaseExceptionHandler {
 
     @ExceptionHandler(ServiceException.class)
     @ResponseBody
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseDTO handle(ServiceException exception){
         logger.info(exception.getMessage());
         return Response.error(exception.getCode(),exception.getMessage());

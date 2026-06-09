@@ -77,6 +77,9 @@ public class AttendanceService extends ServiceImpl<AttendanceMapper, Attendance>
     }
 
     public ResponseDTO delete(Integer id) {
+        if (id == null || id.intValue() < 0) {
+            throw new ServiceException(BusinessStatusEnum.ERROR);
+        }
         if (removeById(id)) {
             return Response.success();
         }
