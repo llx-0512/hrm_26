@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.qiujie.dto.Response;
 import com.qiujie.dto.ResponseDTO;
 import com.qiujie.entity.Docs;
+import com.qiujie.entity.Staff;
 import com.qiujie.enums.BusinessStatusEnum;
 import com.qiujie.exception.ServiceException;
 import com.qiujie.mapper.DocsMapper;
@@ -49,6 +50,16 @@ public class DocsService extends ServiceImpl<DocsMapper, Docs> {
     @Autowired
     private DocsMapper docsMapper;
 
+    @Autowired
+    private StaffService staffService;
+
+    // 允许的文件格式
+    private static final List<String> ALLOWED_EXTENSIONS = List.of(
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", // 图片格式
+            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", // 文档格式
+            "txt", "csv", "zip", "rar" // 其他常见格式
+    );
+
     /**
      * document upload
      *
@@ -58,6 +69,11 @@ public class DocsService extends ServiceImpl<DocsMapper, Docs> {
      * @throws IOException
      */
     public ResponseDTO upload(MultipartFile uploadFile, Integer id) throws IOException {
+        // 验证员工ID是否存在
+        Staff staff = staffService.getById(id);
+        if (staff == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         File fold = new File(filePath);
         // 若存储上传文件的文件夹不存在，则创建
         if (!fold.exists()) {
@@ -65,10 +81,28 @@ public class DocsService extends ServiceImpl<DocsMapper, Docs> {
         }
         // 判断上传的文件是否为空
         if (uploadFile.isEmpty()) {
-            return Response.error(BusinessStatusEnum.FILE_NOT_EXIST);
+            return Response.error(BusinessStatusEnum.ERROR);
         }
         String originalFilename = uploadFile.getOriginalFilename(); // 获取文件的原名称
         String extName = FileUtil.extName(originalFilename); // 获取文件的后缀名
+        // 验证文件扩展名是否为空
+        if (extName == null || extName.trim().isEmpty()) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证文件格式是否允许
+        String extLower = extName.toLowerCase();
+        if (!ALLOWED_EXTENSIONS.contains(extLower)) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证文件名长度（原始文件名超过100字符）
+        if (originalFilename != null && originalFilename.length() > 100) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证文件大小（超过20MB = 20 * 1024 * 1024 字节）
+        long maxSize = 20L * 1024 * 1024;
+        if (uploadFile.getSize() > maxSize) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         String filename = IdUtil.fastSimpleUUID().substring(2, 22) + "." + extName; // 文件名
         // 获取文件的md5信息
         String md5 = SecureUtil.md5(uploadFile.getInputStream());
@@ -109,22 +143,44 @@ public class DocsService extends ServiceImpl<DocsMapper, Docs> {
      * @throws IOException
      */
     public void download(String filename, HttpServletResponse response) throws IOException {
-        File file = new File(filePath + filename);
-        if (file.exists()) {
-            // 通知浏览器以下载的方式打开
-            response.addHeader("Content-Type", "application/octet-stream;charset=utf-8");
-            response.addHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(filename, StandardCharsets.UTF_8));
-            // 通过文件流读取文件
-            OutputStream out = response.getOutputStream();
-            // 读取文件的字节流
-            out.write(FileUtil.readBytes(file));
-            out.flush();
-            out.close();
+        // 验证文件名不能为空
+        if (filename == null || filename.trim().isEmpty()) {
+            throw new ServiceException(BusinessStatusEnum.FILE_NOT_EXIST);
         }
+        // 验证文件名不能包含路径遍历攻击（..）
+        if (filename.contains("..")) {
+            throw new IllegalArgumentException("非法文件名");
+        }
+        // 验证文件名不能包含路径分隔符（绝对路径检查）
+        if (filename.contains("/") || filename.contains("\\")) {
+            throw new IllegalArgumentException("非法路径格式");
+        }
+        File file = new File(filePath + filename);
+        if (!file.exists()) {
+            // 文件不存在时抛出异常，由异常处理器返回 404
+            throw new ServiceException(BusinessStatusEnum.FILE_NOT_EXIST);
+        }
+        // 通知浏览器以下载的方式打开
+        response.addHeader("Content-Type", "application/octet-stream;charset=utf-8");
+        response.addHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(filename, StandardCharsets.UTF_8));
+        // 通过文件流读取文件
+        OutputStream out = response.getOutputStream();
+        // 读取文件的字节流
+        out.write(FileUtil.readBytes(file));
+        out.flush();
+        out.close();
     }
 
 
     public ResponseDTO add(Docs docs) {
+        // 验证新文件名是否已存在
+        if (docs.getName() != null) {
+            QueryWrapper<Docs> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("name", docs.getName());
+            if (getOne(queryWrapper) != null) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+        }
         if (save(docs)) {
             return Response.success();
         }

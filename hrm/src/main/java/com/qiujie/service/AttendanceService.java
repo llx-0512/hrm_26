@@ -62,13 +62,24 @@ public class AttendanceService extends ServiceImpl<AttendanceMapper, Attendance>
     private DatetimeUtil datetimeUtil;
 
     public ResponseDTO add(Attendance attendance) {
+        // 验证员工ID不能为空
+        if (attendance.getStaffId() == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证员工ID对应的员工必须存在
+        if (staffMapper.selectById(attendance.getStaffId()) == null) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         if (save(attendance)) {
-            return Response.success();
+            return Response.success(attendance.getId());
         }
         return Response.error();
     }
 
     public ResponseDTO delete(Integer id) {
+        if (id == null || id.intValue() < 0) {
+            throw new ServiceException(BusinessStatusEnum.ERROR);
+        }
         if (removeById(id)) {
             return Response.success();
         }

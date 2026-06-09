@@ -1,14 +1,5 @@
 # 系统管理模块 - 单元测试用例设计文档
 
-## 📋 文档信息
-
-- **模块名称**: 系统管理模块 (System Management)
-- **包含子模块**: 员工管理、部门管理、文档管理
-- **设计日期**: 2024-04-22
-- **版本**: v1.0
-
----
-
 ## 🎯 测试范围
 
 ### 1. 员工管理 (Staff Management)
@@ -1288,45 +1279,6 @@
 - ✅ 单个元素
 - ✅ 部分元素无效
 
-### 覆盖率提升对比
-
-| 指标 | 优化前 | 优化后 | 提升 |
-|-----|-------|-------|------|
-| 总用例数 | 45个 | 111个 | **+147%** |
-| 边界值用例 | 8个 | 45个 | **+463%** |
-| 安全测试用例 | 2个 | 10个 | **+400%** |
-| 异常测试用例 | 5个 | 20个 | **+300%** |
-
----
-
-## 🔧 测试环境要求
-
-### 数据库准备
-```sql
--- 确保以下基础数据存在
-INSERT INTO sys_dept (id, name, parent_id) VALUES (1, '测试部门', 0);
-INSERT INTO sys_staff (id, name, phone, dept_id, status) VALUES (1, '测试员工', '13800138000', 1, 1);
-```
-
-### 测试配置
-```yaml
-# application-test.yml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/hrm_test
-  redis:
-    host: localhost
-    port: 6379
-
-file-path: /tmp/hrm_test_files/
-```
-
-### 权限配置
-确保测试用户拥有以下权限：
-- system:staff:*
-- system:department:*
-- system:docs:*
-
 ---
 
 ## ⚠️ 注意事项
@@ -1367,7 +1319,3 @@ file-path: /tmp/hrm_test_files/
 - [ ] 安全渗透测试
 
 ---
-
-**文档版本**: v1.0  
-**最后更新**: 2024-04-22  
-**维护者**: 开发团队

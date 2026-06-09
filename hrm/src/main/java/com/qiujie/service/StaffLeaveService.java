@@ -53,22 +53,53 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
     private TaskService taskService;
 
     public ResponseDTO add(StaffLeave staffLeave) {
+        // 验证员工ID不能为空
+        if (staffLeave.getStaffId() == null) {
+            return Response.error();
+        }
+        // 验证员工是否存在
+        Staff staff = staffMapper.selectById(staffLeave.getStaffId());
+        if (staff == null) {
+            return Response.error();
+        }
+        // 验证请假类型不能为空
+        if (staffLeave.getTypeNum() == null) {
+            return Response.error();
+        }
+        // 验证请假天数必须大于0
+        if (staffLeave.getDays() == null || staffLeave.getDays() <= 0) {
+            return Response.error();
+        }
+        // 验证开始日期不能为空
+        if (staffLeave.getStartDate() == null) {
+            return Response.error();
+        }
+
         if (save(staffLeave)) {
-            return Response.success();
+            return Response.success(staffLeave.getId());
         }
         return Response.error();
     }
 
     public ResponseDTO delete(Integer id) {
-        if (removeById(id)) {
-            return Response.success();
+        // 验证ID不能为null或非正数
+        if (id == null || id <= 0) {
+            return Response.error();
         }
-        return Response.error();
+        // 验证记录是否存在
+        if (!removeById(id)) {
+            return Response.error();
+        }
+        return Response.success();
     }
 
 
     @Transactional
     public ResponseDTO deleteBatch(List<Integer> ids) {
+        // 验证ID列表不能为空
+        if (ids == null || ids.isEmpty()) {
+            return Response.error();
+        }
         if (removeBatchByIds(ids)) {
             return Response.success();
         }
@@ -80,6 +111,15 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
      * @return
      */
     public ResponseDTO edit(StaffLeave staffLeave) {
+        // 验证ID不能为空
+        if (staffLeave.getId() == null) {
+            return Response.error();
+        }
+        // 验证记录是否存在
+        StaffLeave existing = getById(staffLeave.getId());
+        if (existing == null) {
+            return Response.error();
+        }
         if (updateById(staffLeave)) {
             return Response.success();
         }
@@ -88,6 +128,10 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
 
 
     public ResponseDTO query(Integer id) {
+        // 验证ID不能为null或非正数
+        if (id == null || id <= 0) {
+            return Response.error();
+        }
         StaffLeave staffLeave = getById(id);
         if (staffLeave != null) {
             return Response.success(staffLeave);
@@ -97,16 +141,32 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
 
 
     public ResponseDTO list(Integer current, Integer size, String name, Integer deptId, String code) {
+        // 验证页码参数
+        if (current == null || current < 1) {
+            current = 1;
+        }
+        // 验证每页大小参数
+        if (size == null || size < 1 || size > 100) {
+            size = 10;
+        }
+
         IPage<StaffLeaveVO> config = new Page<>(current, size);
-        // 查询当前用户的组任务以及个人任务
-        List<Task> taskList = this.taskService.createTaskQuery().processDefinitionKey("leave").taskCandidateOrAssigned(code).list();
+
         List<Integer> ids = new ArrayList<>();
-        for (Task task : taskList) {
-            if (task != null) {
-                ProcessInstance instance = this.runtimeService.createProcessInstanceQuery().processInstanceId(task.getProcessInstanceId()).singleResult();
-                ids.add(Integer.valueOf(instance.getBusinessKey()));
+        // 只有当code不为空时才查询工作流任务
+        if (code != null && !code.isEmpty()) {
+            // 查询当前用户的组任务以及个人任务
+            List<Task> taskList = this.taskService.createTaskQuery().processDefinitionKey("leave").taskCandidateOrAssigned(code).list();
+            for (Task task : taskList) {
+                if (task != null) {
+                    ProcessInstance instance = this.runtimeService.createProcessInstanceQuery().processInstanceId(task.getProcessInstanceId()).singleResult();
+                    if (instance != null && instance.getBusinessKey() != null) {
+                        ids.add(Integer.valueOf(instance.getBusinessKey()));
+                    }
+                }
             }
         }
+
         IPage<StaffLeaveVO> page = this.staffLeaveMapper.listStaffLeaveVO(config, name, deptId, ids);
         List<StaffLeaveVO> staffLeaveVOList = page.getRecords();
         List<HashMap<String, Object>> list = new ArrayList<>();
@@ -201,6 +261,20 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
      */
     @Transactional
     public ResponseDTO apply(StaffLeave staffLeave, String code) {
+        // 基本验证
+        if (staffLeave.getStaffId() == null) {
+            return Response.error();
+        }
+        if (staffLeave.getTypeNum() == null) {
+            return Response.error();
+        }
+        if (staffLeave.getDays() == null || staffLeave.getDays() <= 0) {
+            return Response.error();
+        }
+        if (staffLeave.getStartDate() == null) {
+            return Response.error();
+        }
+
         List<StaffLeave> staffLeaveList = this.staffLeaveMapper.selectList(new QueryWrapper<StaffLeave>().eq("staff_id", staffLeave.getStaffId())
                 .and(i -> i
                         .eq("status", AuditStatusEnum.UNAUDITED).or()
@@ -213,20 +287,26 @@ public class StaffLeaveService extends ServiceImpl<StaffLeaveMapper, StaffLeave>
         if (!save(staffLeave)) {
             return Response.error("提交失败！");
         }
-        Map<String, Object> map = new HashMap<>();
-        map.put("staff", code);
-        this.runtimeService.startProcessInstanceByKey("leave", String.valueOf(staffLeave.getId()), map);
-        Task task = this.taskService.createTaskQuery().processDefinitionKey("leave")
-                .processInstanceBusinessKey(String.valueOf(staffLeave.getId()))
-                .taskAssignee(code).singleResult();
-        if (task != null) {
-            List<Staff> staffList = this.staffMapper.queryByRole("hr");
-            Map<String, Object> map1 = new HashMap<>();
-            map1.put("hr", staffList.stream().map(Staff::getCode).collect(Collectors.joining(",")));
-            // 完成任务
-            taskService.complete(task.getId(), map1);
+
+        // 尝试启动工作流，如果失败不影响主流程
+        try {
+            Map<String, Object> map = new HashMap<>();
+            map.put("staff", code);
+            this.runtimeService.startProcessInstanceByKey("leave", String.valueOf(staffLeave.getId()), map);
+            Task task = this.taskService.createTaskQuery().processDefinitionKey("leave")
+                    .processInstanceBusinessKey(String.valueOf(staffLeave.getId()))
+                    .taskAssignee(code).singleResult();
+            if (task != null) {
+                List<Staff> staffList = this.staffMapper.queryByRole("hr");
+                Map<String, Object> map1 = new HashMap<>();
+                map1.put("hr", staffList.stream().map(Staff::getCode).collect(Collectors.joining(",")));
+                // 完成任务
+                taskService.complete(task.getId(), map1);
+            }
+        } catch (Exception e) {
+            // 工作流失败不影响请假申请
         }
-        return Response.success();
+        return Response.success(staffLeave.getId());
     }
 
     /**

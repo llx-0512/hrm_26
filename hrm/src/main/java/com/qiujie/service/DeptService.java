@@ -43,17 +43,62 @@ public class DeptService extends ServiceImpl<DeptMapper, Dept> {
     private DeptMapper deptMapper;
 
     public ResponseDTO add(Dept dept) {
-        // 父级部门不需要计算上班时间
-        if(dept.getParentId() != 0){
+        // 验证名称不能为空
+        if (dept.getName() == null || dept.getName().trim().isEmpty()) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 如果传入了时间字段，需要验证时间合理性（无论是父部门还是子部门）
+        boolean hasAnyTimeField = dept.getMorStartTime() != null || dept.getMorEndTime() != null ||
+                                  dept.getAftStartTime() != null || dept.getAftEndTime() != null;
+        
+        if (hasAnyTimeField) {
+            // 验证时间字段完整性：如果传入任何一个时间字段，其他三个也必须传入
+            if (dept.getMorStartTime() == null || dept.getMorEndTime() == null ||
+                dept.getAftStartTime() == null || dept.getAftEndTime() == null) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证上午时间合理性：结束时间必须晚于开始时间
+            if (dept.getMorEndTime().before(dept.getMorStartTime()) ||
+                dept.getMorEndTime().equals(dept.getMorStartTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证下午时间合理性：结束时间必须晚于开始时间
+            if (dept.getAftEndTime().before(dept.getAftStartTime()) ||
+                dept.getAftEndTime().equals(dept.getAftStartTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证下午开始时间必须晚于上午结束时间
+            if (dept.getAftStartTime().before(dept.getMorEndTime()) ||
+                dept.getAftStartTime().equals(dept.getMorEndTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+        }
+        
+        // 子部门才计算上班时间
+        if (dept.getParentId() != 0) {
             dept.setTotalWorkTime(calculateTotalWorkTime(dept));
+            if(dept.getTotalWorkTime().compareTo(BigDecimal.valueOf(12))>0){
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
         }
         if (save(dept)) {
-            return Response.success();
+            return Response.success(dept.getId());
         }
         return Response.error();
     }
 
     public ResponseDTO delete(Integer id) {
+        // 验证ID不能为0或负数
+        if (id == null || id <= 0) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 检查是否有子部门
+        QueryWrapper<Dept> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("parent_id", id);
+        List<Dept> children = list(queryWrapper);
+        if (children != null && !children.isEmpty()) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
         if (removeById(id)) {
             return Response.success();
         }
@@ -69,9 +114,66 @@ public class DeptService extends ServiceImpl<DeptMapper, Dept> {
     }
 
     public ResponseDTO edit(Dept dept) {
-        // 子部门才计算上班事件
-        if(dept.getParentId() != 0) {
+        // 验证名称不能为空
+        if (dept.getName() == null || dept.getName().trim().isEmpty()) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        // 验证parentId不能为自己
+        if (dept.getId().equals(dept.getParentId())) {
+            return Response.error(BusinessStatusEnum.ERROR);
+        }
+        
+        // 检测循环引用：如果将A的parent设为C，需要确保C不是A的子部门（或子部门的子部门...）
+        if (dept.getParentId() != 0) {
+            Integer currentId = dept.getId();
+            Integer parentId = dept.getParentId();
+            // 从新的parent向上遍历，检查是否会回到当前部门
+            while (parentId != null && parentId != 0) {
+                if (parentId.equals(currentId)) {
+                    // 发现循环引用
+                    return Response.error(BusinessStatusEnum.ERROR);
+                }
+                Dept parentDept = getById(parentId);
+                if (parentDept == null) {
+                    break;
+                }
+                parentId = parentDept.getParentId();
+            }
+        }
+        
+        // 如果传入了时间字段，需要验证时间合理性（无论是父部门还是子部门）
+        boolean hasAnyTimeField = dept.getMorStartTime() != null || dept.getMorEndTime() != null ||
+                                  dept.getAftStartTime() != null || dept.getAftEndTime() != null;
+        
+        if (hasAnyTimeField) {
+            // 验证时间字段完整性：如果传入任何一个时间字段，其他三个也必须传入
+            if (dept.getMorStartTime() == null || dept.getMorEndTime() == null ||
+                dept.getAftStartTime() == null || dept.getAftEndTime() == null) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证上午时间合理性：结束时间必须晚于开始时间
+            if (dept.getMorEndTime().before(dept.getMorStartTime()) ||
+                dept.getMorEndTime().equals(dept.getMorStartTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证下午时间合理性：结束时间必须晚于开始时间
+            if (dept.getAftEndTime().before(dept.getAftStartTime()) ||
+                dept.getAftEndTime().equals(dept.getAftStartTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+            // 验证下午开始时间必须晚于上午结束时间
+            if (dept.getAftStartTime().before(dept.getMorEndTime()) ||
+                dept.getAftStartTime().equals(dept.getMorEndTime())) {
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
+        }
+        
+        // 子部门才计算上班时间
+        if (dept.getParentId() != 0) {
             dept.setTotalWorkTime(calculateTotalWorkTime(dept));
+            if(dept.getTotalWorkTime().compareTo(BigDecimal.valueOf(12))>0){
+                return Response.error(BusinessStatusEnum.ERROR);
+            }
         }
         QueryWrapper<Dept> queryWrapper = new QueryWrapper();
         queryWrapper.eq("id", dept.getId());
@@ -93,6 +195,14 @@ public class DeptService extends ServiceImpl<DeptMapper, Dept> {
     }
 
     public ResponseDTO query(Integer id) {
+        // 验证ID不能为null
+        if (id == null) {
+            throw new IllegalArgumentException("ID不能为空");
+        }
+        // 验证ID必须为正数
+        if (id <= 0) {
+            throw new IllegalArgumentException("ID必须为正数");
+        }
         Dept dept = getById(id);
         if (dept != null) {
             return Response.success(dept);

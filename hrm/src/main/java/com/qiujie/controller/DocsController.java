@@ -1,13 +1,17 @@
 package com.qiujie.controller;
 
 import com.qiujie.entity.Docs;
+import com.qiujie.dto.Response;
 import com.qiujie.dto.ResponseDTO;
+import com.qiujie.enums.BusinessStatusEnum;
+import com.qiujie.exception.ServiceException;
 import com.qiujie.service.DocsService;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -96,12 +100,24 @@ public class DocsController {
     @GetMapping("/download/{filename}")
     @PreAuthorize("hasAnyAuthority('system:docs:download')")
     public void download(@PathVariable String filename, HttpServletResponse response) throws IOException {
-        this.docsService.download(filename, response);
+        try {
+            this.docsService.download(filename, response);
+        } catch (ServiceException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "文件不存在");
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "非法请求");
+        }
     }
 
     @ApiOperation("文件下载")
     @GetMapping("/avatar/{filename}")
     public void getAvatar(@PathVariable String filename, HttpServletResponse response) throws IOException {
-        this.docsService.download(filename, response);
+        try {
+            this.docsService.download(filename, response);
+        } catch (ServiceException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "文件不存在");
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "非法请求");
+        }
     }
 }
