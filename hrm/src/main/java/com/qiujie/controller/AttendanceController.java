@@ -4,6 +4,7 @@ import com.qiujie.service.AttendanceService;
 import com.qiujie.entity.Attendance;
 
 import com.qiujie.dto.ResponseDTO;
+import com.qiujie.dto.Response;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,7 +14,9 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -37,16 +40,22 @@ public class AttendanceController {
         return this.attendanceService.add(attendance);
     }
 
+    @ApiOperation("批量逻辑删除")
+    @DeleteMapping("/batch")
+    public ResponseDTO deleteBatch(@RequestParam(required = false) String ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Response.success();
+        }
+        List<Integer> idList = Arrays.stream(ids.split(","))
+                .map(Integer::parseInt)
+                .collect(Collectors.toList());
+        return this.attendanceService.deleteBatch(idList);
+    }
+
     @ApiOperation("逻辑删除")
     @DeleteMapping("/{id}")
     public ResponseDTO delete(@PathVariable Integer id) {
         return this.attendanceService.delete(id);
-    }
-
-    @ApiOperation("批量逻辑删除")
-    @DeleteMapping("/batch/{ids}")
-    public ResponseDTO deleteBatch(@PathVariable List<Integer> ids) {
-        return this.attendanceService.deleteBatch(ids);
     }
 
     @ApiOperation("编辑更新")
@@ -86,6 +95,12 @@ public class AttendanceController {
     @GetMapping("/{id}/{date}")
     public ResponseDTO queryByStaffIdAndDate(@PathVariable Integer id, @PathVariable String date) {
         return this.attendanceService.queryByStaffIdAndDate(id, date);
+    }
+
+    @ApiOperation("按员工和日期查询")
+    @GetMapping("/query")
+    public ResponseDTO queryByStaffIdAndDateByParam(@RequestParam Integer staffId, @RequestParam String date) {
+        return this.attendanceService.queryByStaffIdAndDate(staffId, date);
     }
 
     @ApiOperation("保存或更新")
