@@ -3,7 +3,7 @@ name: HRM CI - 集成测试
 # ============================================================
 # GitHub Actions CI 工作流
 # 触发条件：推送到 master/develop 分支 或 Pull Request
-# 环境要求：MySQL 8.0 + Java 17 + Maven
+# 环境要求：Java 17 + Maven + MySQL 8.0（apt-get 安装，无需 Docker Hub）
 # ============================================================
 
 on:
@@ -11,7 +11,6 @@ on:
     branches: [master, develop, main, UT]
   pull_request:
     branches: [master, main]
-  # 允许手动触发
   workflow_dispatch:
     inputs:
       test-type:
@@ -28,27 +27,11 @@ env:
 
 jobs:
   # ============================================================
-  # Job 1: 集成测试
+  # Job 1: 集成测试（使用 apt-get 安装 MySQL，无需 Docker）
   # ============================================================
   integration-test:
     name: "集成测试 (Java 17 + MySQL 8.0)"
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: test123
-          MYSQL_DATABASE: hrm_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptest123"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --character-set-server=utf8mb4
-          --collation-server=utf8mb4_unicode_ci
 
     steps:
       # Step 1: 检出代码
@@ -63,26 +46,30 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # Step 3: 验证 MySQL 就绪
-      - name: 等待 MySQL 就绪
+      # Step 3: 安装并启动 MySQL 8.0（apt-get 方式，不依赖 Docker Hub）
+      - name: 安装并启动 MySQL 8.0
         run: |
-          echo "正在等待 MySQL 启动..."
-          for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -u root -ptest123 --silent; then
-              echo "MySQL 已就绪!"
-              break
-            fi
-            echo "等待中... ($i/30)"
-            sleep 2
-          done
-          # 创建 Activiti 数据库
-          mysql -h 127.0.0.1 -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          echo "数据库创建完成"
+          echo "=== 安装 MySQL 8.0 ==="
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server mysql-client
+
+          echo "=== 配置 MySQL ==="
+          sudo systemctl start mysql
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
+          sudo mysql -u root -ptest123 -e "FLUSH PRIVILEGES;"
+
+          echo "=== 创建测试数据库 ==="
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+          echo "=== MySQL 状态检查 ==="
+          sudo systemctl status mysql --no-pager || true
+          sudo mysql -u root -ptest123 -e "SELECT VERSION();"
 
       # Step 4: 初始化测试数据库表结构
-      - name: 初始化测试数据库表结构
+      - name: 初始化测试数据库表结构和数据
         run: |
-          mysql -h 127.0.0.1 -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
+          sudo mysql -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
           echo "测试数据库初始化完成"
 
       # Step 5: 缓存 Maven 依赖
@@ -113,7 +100,7 @@ jobs:
           mvn jacoco:report --batch-mode
 
       # Step 8: 上传测试报告
-      - name: 上传 Surefire 测试报告
+      - name: 上传测试报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -123,38 +110,13 @@ jobs:
             hrm/target/site/jacoco/
           retention-days: 30
 
-      # Step 9: 发布覆盖率摘要
-      - name: 发布 JaCoCo 覆盖率摘要
-        if: always()
-        uses: cicirello/jacoco-badge-generator@v2
-        with:
-          jacoco-csv-file: hrm/target/site/jacoco/jacoco.csv
-          generate-coverage-badge: true
-          generate-branches-badge: true
-
   # ============================================================
-  # Job 2: 全量测试 (含覆盖率)
+  # Job 2: 全量测试（含覆盖率）
   # ============================================================
   full-test:
     name: "全量测试 + 覆盖率 (Java 17 + MySQL 8.0)"
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: test123
-          MYSQL_DATABASE: hrm_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptest123"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --character-set-server=utf8mb4
-          --collation-server=utf8mb4_unicode_ci
 
     steps:
       - name: 检出代码
@@ -167,16 +129,27 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: 等待 MySQL 并初始化
+      - name: 安装并启动 MySQL 8.0
         run: |
-          for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -u root -ptest123 --silent; then
-              echo "MySQL 已就绪!"; break
-            fi
-            sleep 2
-          done
-          mysql -h 127.0.0.1 -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          mysql -h 127.0.0.1 -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
+          echo "=== 安装 MySQL 8.0 ==="
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server mysql-client
+
+          echo "=== 配置 MySQL ==="
+          sudo systemctl start mysql
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
+          sudo mysql -u root -ptest123 -e "FLUSH PRIVILEGES;"
+
+          echo "=== 创建数据库 ==="
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+          echo "=== 状态检查 ==="
+          sudo mysql -u root -ptest123 -e "SELECT VERSION();"
+
+      - name: 初始化测试数据
+        run: |
+          sudo mysql -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
 
       - name: 缓存 Maven 依赖
         uses: actions/cache@v4

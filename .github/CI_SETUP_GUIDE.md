@@ -277,22 +277,28 @@ full-test-reports/
 
 ## 5. 常见问题排查
 
-### 5.1 MySQL 连接失败
+### 5.1 MySQL 连接/启动失败
 
-**现象：** CI 日志显示 `Communications link failure` 或 `Connection refused`
+**现象：** CI 日志显示 Docker exit code 125 或 MySQL 连接失败
+
+**原因：** 我们的 CI 已改用 `apt-get install mysql-server` 直接安装 MySQL，
+不再依赖 Docker 拉取镜像，因此不会触发 Docker Hub 匿名拉取限流问题。
 
 **排查步骤：**
 ```bash
-# 1. 检查 MySQL Service 是否正常启动
-# 在 CI 日志中搜索: "MySQL 已就绪"
-
-# 2. 验证健康检查是否通过
-# 如果看到 "Waiting for MySQL..." 重复 30 次后超时
-# → MySQL 容器可能内存不足或启动太慢
-
-# 3. 增加启动等待时间
-# 在 ci.yml 中将 for i in $(seq 1 30) 改为 $(seq 1 60)
+# 1. 在 CI 日志中搜索 "MySQL 8.0" 查看安装过程
+# 2. 如果 apt-get install 失败 → 可能是 ubuntu-latest 软件源问题（重试即可）
+# 3. MySQL 通过 Unix socket 连接 (localhost)，无需 TCP 端口映射
 ```
+
+### 5.1b Docker Hub 限流（旧版 Docker 方案）
+
+如果之前使用了 Docker service 容器方案，exit code 125 = Docker Hub 匿名拉取限流。
+**已修复**：当前方案使用 `apt-get` 直接安装，不再需要 Docker Hub。
+
+如果仍需使用 Docker 方案，需要在 GitHub Secrets 中添加：
+- `DOCKER_USERNAME` — Docker Hub 用户名
+- `DOCKER_PASSWORD` — Docker Hub 密码/Token
 
 ### 5.2 表不存在错误
 
