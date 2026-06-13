@@ -557,8 +557,8 @@ class DocsControllerTest {
     @DisplayName("TC-DOCS-026: 文件下载 - 空文件名")
     @WithMockUser(username = "admin")
     void testDownloadFile_EmptyName() throws Exception {
-        // When & Then - /docs/download 会匹配 /{id} 端点，id="download" 存在则返回200
+        // When & Then - 空路径被Spring Security防火墙拦截，返回400
         mockMvc.perform(get("/docs/download"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
     }
 }
