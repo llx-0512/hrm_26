@@ -51,10 +51,11 @@ public class TestDataFactory {
         Dept dept = new Dept();
         dept.setName(name);
         dept.setParentId(parentId);
-        dept.setMorStartTime(Timestamp.valueOf("2026-01-01 09:00:00"));
-        dept.setMorEndTime(Timestamp.valueOf("2026-01-01 12:00:00"));
-        dept.setAftStartTime(Timestamp.valueOf("2026-01-01 14:00:00"));
-        dept.setAftEndTime(Timestamp.valueOf("2026-01-01 18:00:00"));
+        // 数据库列类型为 TIME, 使用 Time.valueOf 而非 Timestamp.valueOf
+        dept.setMorStartTime(new Timestamp(Time.valueOf("09:00:00").getTime()));
+        dept.setMorEndTime(new Timestamp(Time.valueOf("12:00:00").getTime()));
+        dept.setAftStartTime(new Timestamp(Time.valueOf("14:00:00").getTime()));
+        dept.setAftEndTime(new Timestamp(Time.valueOf("18:00:00").getTime()));
         dept.setTotalWorkTime(new BigDecimal("8"));
         return dept;
     }
