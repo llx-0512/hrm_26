@@ -5,14 +5,14 @@ spring:
   datasource:
     master:
       jdbc-url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/hrm_test?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2b8
-      username: ${MYSQL_USER:test}
-      password: ${MYSQL_PASSWORD:test123}
+      username: ${MYSQL_USER:root}
+      password: ${MYSQL_PASSWORD:llx123456}
       driver-class-name: com.mysql.cj.jdbc.Driver
       type: com.zaxxer.hikari.HikariDataSource
     activiti:
       jdbc-url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/hrm_activiti_test?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2b8
-      username: ${MYSQL_USER:test}
-      password: ${MYSQL_PASSWORD:test123}
+      username: ${MYSQL_USER:root}
+      password: ${MYSQL_PASSWORD:llx123456}
       driver-class-name: com.mysql.cj.jdbc.Driver
       type: com.zaxxer.hikari.HikariDataSource
 
