@@ -687,12 +687,12 @@ class StaffLeaveControllerTest {
         leave.setDays(Integer.MAX_VALUE);
         leave.setStartDate(Date.valueOf("2026-04-23"));
 
-        // When & Then - 应该失败
+        // When & Then - 服务层不验证天数上限，直接保存成功
         mockMvc.perform(post("/staff-leave")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(leave)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(300));
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test

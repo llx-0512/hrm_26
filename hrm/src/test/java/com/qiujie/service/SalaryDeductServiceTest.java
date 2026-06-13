@@ -341,4 +341,95 @@ class SalaryDeductServiceTest {
         }
     }
 
+    // ==================== CRUD 补充测试 ====================
+
+    @Test
+    void testDelete_Success() {
+        lenient().doReturn(true).when(salaryDeductService).removeById(1);
+        ResponseDTO rsp = salaryDeductService.delete(1);
+        assertEquals(200, rsp.getCode());
+    }
+
+    @Test
+    void testDelete_Failure() {
+        lenient().doReturn(false).when(salaryDeductService).removeById(999);
+        ResponseDTO rsp = salaryDeductService.delete(999);
+        assertEquals(300, rsp.getCode());
+    }
+
+    @Test
+    void testDeleteBatch_Success() {
+        lenient().doReturn(true).when(salaryDeductService).removeBatchByIds(anyList());
+        ResponseDTO rsp = salaryDeductService.deleteBatch(java.util.Arrays.asList(1, 2));
+        assertEquals(200, rsp.getCode());
+    }
+
+    @Test
+    void testDeleteBatch_Failure() {
+        lenient().doReturn(false).when(salaryDeductService).removeBatchByIds(anyList());
+        ResponseDTO rsp = salaryDeductService.deleteBatch(java.util.Arrays.asList(1, 2));
+        assertEquals(300, rsp.getCode());
+    }
+
+    @Test
+    void testEdit_Success() {
+        lenient().doReturn(true).when(salaryDeductService).updateById(any(SalaryDeduct.class));
+        ResponseDTO rsp = salaryDeductService.edit(createDeductionRule(1, 10, DeductEnum.LATE_DEDUCT, 50, "更新"));
+        assertEquals(200, rsp.getCode());
+    }
+
+    @Test
+    void testEdit_Failure() {
+        lenient().doReturn(false).when(salaryDeductService).updateById(any(SalaryDeduct.class));
+        ResponseDTO rsp = salaryDeductService.edit(createDeductionRule(999, 10, DeductEnum.LATE_DEDUCT, 50, "失败"));
+        assertEquals(300, rsp.getCode());
+    }
+
+    @Test
+    void testQuery_Success() {
+        SalaryDeduct sd = createDeductionRule(1, 10, DeductEnum.LATE_DEDUCT, 50, "规则");
+        lenient().doReturn(sd).when(salaryDeductService).getById(1);
+        ResponseDTO rsp = salaryDeductService.query(1);
+        assertEquals(200, rsp.getCode());
+        assertEquals(sd, rsp.getData());
+    }
+
+    @Test
+    void testQuery_NotFound() {
+        lenient().doReturn(null).when(salaryDeductService).getById(999);
+        ResponseDTO rsp = salaryDeductService.query(999);
+        assertEquals(300, rsp.getCode());
+    }
+
+    @Test
+    void testQueryByDeptIdAndTypeNum_Success() {
+        SalaryDeduct sd = createDeductionRule(1, 10, DeductEnum.LATE_DEDUCT, 50, "规则");
+        lenient().doReturn(sd).when(salaryDeductService).getOne(any());
+        ResponseDTO rsp = salaryDeductService.queryByDeptIdAndTypeNum(10, 0);
+        assertEquals(200, rsp.getCode());
+    }
+
+    @Test
+    void testQueryByDeptIdAndTypeNum_NotFound() {
+        lenient().doReturn(null).when(salaryDeductService).getOne(any());
+        ResponseDTO rsp = salaryDeductService.queryByDeptIdAndTypeNum(999, 99);
+        assertEquals(300, rsp.getCode());
+    }
+
+    @Test
+    void testSetSalaryDeduct_Success() {
+        lenient().doReturn(true).when(salaryDeductService).saveOrUpdate(any(SalaryDeduct.class), any());
+        SalaryDeduct sd = createDeductionRule(null, 10, DeductEnum.LATE_DEDUCT, 50, "设置");
+        ResponseDTO rsp = salaryDeductService.setSalaryDeduct(sd);
+        assertEquals(200, rsp.getCode());
+    }
+
+    @Test
+    void testSetSalaryDeduct_Failure() {
+        lenient().doReturn(false).when(salaryDeductService).saveOrUpdate(any(SalaryDeduct.class), any());
+        SalaryDeduct sd = createDeductionRule(null, 10, DeductEnum.LATE_DEDUCT, 50, "设置");
+        ResponseDTO rsp = salaryDeductService.setSalaryDeduct(sd);
+        assertEquals(300, rsp.getCode());
+    }
+
 }
