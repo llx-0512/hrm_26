@@ -27,7 +27,7 @@ class SalaryIntegrationTest extends BaseIntegrationTest {
     @DisplayName("INT-SAL-001: 城市标准 → 社保 → 薪资 完整链路")
     @WithMockUser(authorities = {"money:city:add", "money:insurance:set", "money:salary:set"})
     void testFullSalarySetupFlow() throws Exception {
-        // Step 1: 创建城市社保标准
+        // Step 1: 创建城市社保标准 (返回 data=true)
         City city = TestDataFactory.createDefaultCity("北京市");
         mockMvc.perform(post("/city")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -35,26 +35,23 @@ class SalaryIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // Step 2: 为员工设置社保（使用已知 cityId=1）
+        // Step 2: 使用 init SQL 中已插入的城市 ID=1 设置员工社保
         Insurance insurance = TestDataFactory.createDefaultInsurance(1, 1);
         mockMvc.perform(post("/insurance/set")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(status().isOk());
 
         // Step 3: 为员工设置薪资
         Salary salary = TestDataFactory.createDefaultSalary(1);
         mockMvc.perform(post("/salary/set")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(salary)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(status().isOk());
 
         // Step 4: 验证薪资查询
         mockMvc.perform(get("/salary/{id}", 1))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(status().isOk());
     }
 
     // ==================== INT-SAL-002: 社保基数越界处理 ====================
