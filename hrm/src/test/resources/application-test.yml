@@ -38,7 +38,7 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   type-enums-package: com.qiujie.enums
 
-file-path: /tmp/hrm-test-files/
+file-path: ${FILE_PATH:C:/Users/hp/Desktop/fo11ow-me/hrm/file/}
 
 holidays:
   - 2024-01-01
