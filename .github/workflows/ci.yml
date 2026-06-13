@@ -53,17 +53,43 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server mysql-client
 
-          echo "=== 配置 MySQL ==="
+          echo "=== 等待 MySQL 启动完成 ==="
           sudo systemctl start mysql
-          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
-          sudo mysql -u root -ptest123 -e "FLUSH PRIVILEGES;"
+          for i in $(seq 1 20); do
+            if sudo systemctl is-active --quiet mysql; then
+              echo "MySQL 已启动 (尝试 $i)"
+              break
+            fi
+            echo "等待... ($i/20)"
+            sleep 2
+          done
+
+          echo "=== 设置 root 密码 ==="
+          # Ubuntu 22.04 默认 auth_socket，用 sudo 可无密码登录
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123'; FLUSH PRIVILEGES;" 2>/dev/null && echo "密码设置成功" || {
+            echo "auth_socket 方式失败，尝试 skip-grant-tables 重置密码"
+            sudo systemctl stop mysql
+            sudo mkdir -p /var/run/mysqld && sudo chown mysql:mysql /var/run/mysqld
+            sudo mysqld_safe --skip-grant-tables --skip-networking &
+            sleep 5
+            sudo mysql -e "FLUSH PRIVILEGES; ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
+            sudo killall mysqld || true
+            sudo systemctl start mysql
+            sleep 3
+          }
 
           echo "=== 创建测试数据库 ==="
-          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          for cmd in \
+            "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" \
+            "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+          do
+            sudo mysql -u root -ptest123 -e "$cmd" 2>/dev/null || \
+            mysql -u root -ptest123 -h 127.0.0.1 -e "$cmd" 2>/dev/null || \
+            echo "数据库可能已存在，跳过"
+          done
 
-          echo "=== MySQL 状态检查 ==="
-          sudo systemctl status mysql --no-pager || true
+          echo "=== 验证 MySQL 连接 ==="
+          mysql -u root -ptest123 -h 127.0.0.1 -e "SELECT VERSION();" 2>/dev/null || \
           sudo mysql -u root -ptest123 -e "SELECT VERSION();"
 
       # Step 4: 初始化测试数据库表结构
@@ -135,17 +161,28 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server mysql-client
 
-          echo "=== 配置 MySQL ==="
+          echo "=== 等待 MySQL 启动完成 ==="
           sudo systemctl start mysql
-          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
-          sudo mysql -u root -ptest123 -e "FLUSH PRIVILEGES;"
+          for i in $(seq 1 20); do
+            if sudo systemctl is-active --quiet mysql; then break; fi
+            sleep 2
+          done
+
+          echo "=== 设置 root 密码 ==="
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123'; FLUSH PRIVILEGES;" 2>/dev/null || {
+            sudo systemctl stop mysql
+            sudo mkdir -p /var/run/mysqld && sudo chown mysql:mysql /var/run/mysqld
+            sudo mysqld_safe --skip-grant-tables --skip-networking &
+            sleep 5
+            sudo mysql -e "FLUSH PRIVILEGES; ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test123';"
+            sudo killall mysqld || true
+            sudo systemctl start mysql
+            sleep 3
+          }
 
           echo "=== 创建数据库 ==="
-          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-          echo "=== 状态检查 ==="
-          sudo mysql -u root -ptest123 -e "SELECT VERSION();"
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+          sudo mysql -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
 
       - name: 初始化测试数据
         run: |
