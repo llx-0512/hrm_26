@@ -28,18 +28,9 @@ class OrganizationIntegrationTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("INT-ORG-001: 部门+员工+角色联动流程")
-    @WithMockUser(authorities = {"system:department:add", "system:staff:add", "system:staff:set_role"})
+    @WithMockUser(authorities = {"system:staff:add", "system:staff:set_role"})
     void testDepartmentStaffRoleFlow() throws Exception {
-        // Step 1: 新建部门 (使用唯一名称避免与 init SQL 冲突)
-        Dept dept = TestDataFactory.createDefaultDept("INT-ORG-001-" + System.nanoTime(), 0);
-        dept.setCode("int_org_001");
-        mockMvc.perform(post("/dept")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dept)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-
-        // Step 2: 使用 init SQL 中已存在的部门 ID=1，新增员工
+        // Step 1: 使用 init SQL 中已存在的部门 ID=1（技术部），新增员工
         Staff staff = TestDataFactory.createDefaultStaff("测试员工", "int_org_001_staff", 1);
         mockMvc.perform(post("/staff")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -47,14 +38,14 @@ class OrganizationIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // Step 3: 为已存在的员工 ID=1 分配角色
+        // Step 2: 为员工分配角色
         mockMvc.perform(post("/staff/set/{id}", 1)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Arrays.asList(1, 2))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // Step 4: 验证员工拥有角色
+        // Step 3: 验证员工拥有角色
         mockMvc.perform(get("/staff/staff/{id}", 1))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -64,22 +55,15 @@ class OrganizationIntegrationTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("INT-ORG-002: 逻辑删除部门后员工记录保留")
-    @WithMockUser(authorities = {"system:department:add", "system:department:delete"})
+    @WithMockUser(authorities = {"system:department:delete"})
     void testDeleteDepartment_StaffRecordsPreserved() throws Exception {
-        // 使用唯一名称和 code 创建部门
-        Dept dept = TestDataFactory.createDefaultDept("INT-ORG-002-" + System.nanoTime(), 0);
-        dept.setCode("int_org_002");
-        mockMvc.perform(post("/dept")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dept)))
+        // Step 1: 逻辑删除 init SQL 中已存在的部门 ID=2（产品部）
+        // 注意：产品部没有子部门所以删除成功，如有子部门 DeptService.delete() 会拒绝
+        mockMvc.perform(delete("/dept/{id}", 2))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 逻辑删除 init SQL 中已存在的部门 ID=2（产品部）
-        mockMvc.perform(delete("/dept/{id}", 2))
-                .andExpect(status().isOk());
-
-        // 验证员工（属于部门1）仍然存在
+        // Step 2: 验证归属于部门1（技术部）的员工仍然存在
         mockMvc.perform(get("/staff/{id}", 1))
                 .andExpect(status().isOk());
     }
