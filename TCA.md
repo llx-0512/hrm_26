@@ -26,27 +26,57 @@
 
 ---
 
+## 核心测试用例索引
+
+> 以下为报告中应优先展示的核心测试（~70 个），按模块和重要程度排列。
+
+| 优先级 | 模块 | 核心测试 | 数量 | 关键价值 |
+|--------|------|---------|------|---------|
+| 🔴 P0 | 全局异常 | BaseExceptionHandlerWhiteBoxTest | 6 | 6个 @ExceptionHandler 映射验证 |
+| 🔴 P0 | 登录认证 | TC-LOGIN-001~006,008~009,015 | 8 | 认证流程 + SQL注入防护 |
+| 🔴 P0 | 文档管理 | TC-DOCS-001~004,007,029~030 + WB | 12 | 文件上传安全 + 路径遍历防护 |
+| 🟡 P1 | 员工管理 | StaffServiceWhiteBoxTest | 3 | NPE风险 + 硬编码暴露 |
+| 🟡 P1 | 请假申请 | StaffLeaveServiceWhiteBoxTest | 6 | 工作流静默失败 + 数据不一致 |
+| 🟡 P1 | 加班记录 | StaffOvertimeServiceWhiteBoxTest | 8 | 加班费计算引擎8路径 |
+| 🟡 P1 | 考勤记录 | AttendanceServiceWhiteBoxTest + 判定测试 | 7+4 | isLate/isLeaveEarly/isAbsenteeism 多条件 |
+| 🟡 P1 | 部门管理 | DeptServiceWhiteBoxTest | 4 | 时间字段完整性校验 |
+| 🟡 P1 | 文档管理 | DocsServiceWhiteBoxTest | 7 | 上传校验链 + MD5 + 下载安全 |
+| 🟢 P2 | 菜单管理 | MenuServiceTest (树结构) | 3 | 三层树构建 + 分页树 |
+| 🟢 P2 | 考勤记录 | AttendanceServiceTest (list/export) | 2 | 月考勤日历 + 报表导出 |
+| 🟢 P2 | 首页聚合 | HomeServiceTest | 5 | 季度统计 + 部门人数 + 考勤日历 |
+| 🟢 P2 | 薪资管理 | SalaryCalculationTest + ExportTest | 5 | 扣款计算 + 报表导出 |
+| 🟢 P2 | 员工管理 | StaffServiceTest (代表CRUD) | 5 | add/delete/edit/query/list |
+| 🟢 P2 | 角色管理 | RoleServiceTest (代表CRUD模式) | 3 | CRUD 双分支 + setMenu |
+| 🟢 P2 | 社保公积金 | InsuranceServiceTest (list分支) | 2 | 部门/无部门分叉 |
+| 🔵 P3 | 各Controller | 边界值参数化测试 | 5 | Insurance/Menu/Dept 等 @CsvSource |
+| 🔵 P3 | 各Controller | 正常场景 + 权限 + 认证 | 15 | 每个模块 1-2 个代表 |
+
+> 其余 ~460 个测试可通过摘要表格列出，无需逐方法展开。
+
+---
+
 ## 1. 测试概览
 
-### 1.1 测试文件分布
+### 1.1 测试文件分布（精简后）
 
 | 层次 | 文件数 | 说明 |
 |------|--------|------|
 | Controller 层 | 13 | REST API 接口集成测试 |
-| Service 层 | 16 | 服务层单元测试 + 白盒测试 |
+| Service 层 | 16 | 单元测试 + 白盒测试 |
 | Mapper 层 | 1 | 数据访问层测试 |
 | Exception | 1 | 全局异常处理器白盒测试 |
 | Config | 3 | 测试配置/工具类 |
-| **总计** | **34** | |
+| **总计** | **34** | (已删除 3 个同构 Service 测试文件) |
 
 ### 1.2 测试类型分布
 
-| 类型 | 用例数（约） | 说明 |
-|------|-------------|------|
-| 集成测试 (Controller) | ~230 | SpringBootTest + MockMvc |
-| 单元测试 (Service) | ~120 | Mockito + 反射 |
-| 单元测试 (Mapper) | ~25 | SpringBootTest + 真实数据库 |
+| 类型 | 方法级计数 | 说明 |
+|------|-----------|------|
+| 集成测试 (Controller) | ~280 | SpringBootTest + MockMvc |
+| 单元测试 (Service) | ~200 | Mockito + spy |
+| 单元测试 (Mapper) | ~25 | SpringBootTest + 真实DB |
 | 白盒测试 | ~35 | 反射/私有方法覆盖 |
+| **@Test + @ParameterizedTest** | **536** | 总量 |
 
 ---
 
@@ -854,4 +884,100 @@
 
 ---
 
+## 16. 精简统计
+
+### 16.1 操作记录
+
+| 轮次 | 操作 | 文件变化 | 方法变化 |
+|------|------|---------|---------|
+| 初始 | - | 38 | ~632 |
+| P0 Service CRUD | 新增 6 个文件 | +6 | +104 |
+| P2 Service 补完 | 新增 4 个文件 | +4 | +62 |
+| 删同构 Service | 删除 City/Leave/Overtime 测试 | -3 | -48 |
+| Service 失败分支合并 | Insurance/Menu/Attendance 内合并 | 0 | -26 |
+| Controller 参数化 | Insurance(13→1) + Menu(11→1) | 0 | -22 |
+| **最终** | | **35** | **536** |
+
+### 16.2 JaCoCo 覆盖率（终版）
+
+> **测试**: 536 个 @Test/@ParameterizedTest | **整体指令**: 47% | **Service 指令**: 79%
+
+| Service | 覆盖率 | Service | 覆盖率 |
+|---------|--------|---------|--------|
+| LeaveService | 100% | OvertimeService | 100% |
+| MenuService | 100% | RoleService | 100% |
+| CityService | 100% | InsuranceService | 100% |
+| HomeService | 98% | SalaryDeductService | 96% |
+| AttendanceService | 72% | SalaryService | 89% |
+| StaffService | 86% | DocsService | 84% |
+| StaffLeaveService | 60% | StaffOvertimeService | 64% |
+
+### 16.3 文件清单（35 个测试文件，536 个测试方法）
+
+```
+src/test/java/com/qiujie/
+├── controller/
+│   ├── AttendanceControllerTest.java      (26)
+│   ├── CityControllerTest.java            (22)
+│   ├── DeptControllerTest.java            (21)
+│   ├── DocsControllerTest.java            (30)
+│   ├── DocsControllerWhiteBoxTest.java    (6)
+│   ├── InsuranceControllerTest.java       (16, 含1个@ParameterizedTest)
+│   ├── LoginControllerTest.java           (15)
+│   ├── MenuControllerTest.java            (13, 含1个@ParameterizedTest)
+│   ├── RoleControllerTest.java            (14)
+│   ├── SalaryControllerTest.java          (14)
+│   ├── StaffControllerTest.java           (28)
+│   ├── StaffLeaveControllerTest.java      (36)
+│   └── StaffOvertimeControllerTest.java   (31)
+├── exception/
+│   └── BaseExceptionHandlerWhiteBoxTest.java (6)
+├── mapper/
+│   └── StaffMapperTest.java               (28)
+└── service/
+    ├── AttendanceServiceTest.java         (15)
+    ├── AttendanceServiceWhiteBoxTest.java (7)
+    ├── CityStandardTest.java              (10)
+    ├── DeptServiceWhiteBoxTest.java       (4)
+    ├── DocsServiceWhiteBoxTest.java       (11)
+    ├── HomeServiceTest.java               (8)
+    ├── InsuranceServiceTest.java          (10)
+    ├── MenuServiceTest.java               (12)
+    ├── RoleServiceTest.java               (17)
+    ├── SalaryCalculationTest.java         (24)
+    ├── SalaryDeductServiceTest.java       (21)
+    ├── SalaryDetailTest.java              (4)
+    ├── SalaryExportTest.java              (26)
+    ├── SocialSecurityCalculateTest.java   (10)
+    ├── SocialSecurityRatioTest.java       (25)
+    ├── SocialSecurityTestBase.java        (6)
+    ├── StaffLeaveServiceWhiteBoxTest.java (6)
+    ├── StaffOvertimeServiceWhiteBoxTest.java (8)
+    ├── StaffServiceTest.java              (26)
+    └── StaffServiceWhiteBoxTest.java      (3)
+```
+
+### 16.4 报告建议
+
+536 个测试方法中：
+- **核心（~70 个）**：白盒 × 8 文件 + 树结构 + 计算引擎 + 安全测试 → 报告完整展开
+- **代表（~40 个）**：RoleService CRUD + Controller 正常/权限/认证 → 每模块 1-2 例
+- **摘要（~426 个）**：CRUD 同构 + 边界值 @CsvSource 行 → 表格列出
+
+预计报告篇幅：**80-90 页**，完全在 150 页限制内。
+
+---
+
+## 17. 缩减总结
+
+| 指标 | 初始 | 终版 | 变化 |
+|------|------|------|------|
+| 测试文件 | 38 | 35 | -3 |
+| @Test/@ParameterizedTest | ~632 | 536 | -96 (15%) |
+| 整文件删除 | - | 3 | 同构 Service ×3 |
+| Service 方法合并 | - | 26→10 | 失败分支 + 列表 |
+| Controller 参数化 | - | 24→2 | @CsvSource ×2 |
+| 🔴 Service 清零 | 5 个 | **0 个** | 全部≥60% |
+| Service 层覆盖率 | 51% | **79%** | +28pp |
+| 报告预估页数 | ~120 | **~85** | -35 页 |
 

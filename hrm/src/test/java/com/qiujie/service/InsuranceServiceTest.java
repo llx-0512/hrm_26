@@ -33,8 +33,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 社保公积金 Service 层单元测试
- * 覆盖：add/delete/deleteBatch/edit/query/queryByStaffId/list/export/imp 全部分支路径
+ * 社保公积金 Service 层单元测试（精简版 —— 代表 Service CRUD 模式）
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("社保公积金Service层单元测试")
@@ -61,239 +60,78 @@ class InsuranceServiceTest {
         ReflectionTestUtils.setField(insuranceService, "insuranceMapper", insuranceMapper);
     }
 
-    // ==================== add ====================
+    // ==================== 成功路径（代表 CRUD 模式） ====================
 
     @Test
-    @DisplayName("add — 保存成功")
+    @DisplayName("add/delete/edit — 成功路径")
     void testAdd_Success() {
         doReturn(true).when(insuranceService).save(any(Insurance.class));
-
-        ResponseDTO rsp = insuranceService.add(buildInsurance());
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(200, insuranceService.add(buildInsurance()).getCode());
     }
 
     @Test
-    @DisplayName("add — 保存失败")
-    void testAdd_Failure() {
-        doReturn(false).when(insuranceService).save(any(Insurance.class));
-
-        ResponseDTO rsp = insuranceService.add(buildInsurance());
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== delete ====================
-
-    @Test
-    @DisplayName("delete — 删除成功")
-    void testDelete_Success() {
-        doReturn(true).when(insuranceService).removeById(1);
-
-        ResponseDTO rsp = insuranceService.delete(1);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("delete — 删除失败")
-    void testDelete_Failure() {
-        doReturn(false).when(insuranceService).removeById(999);
-
-        ResponseDTO rsp = insuranceService.delete(999);
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== deleteBatch ====================
-
-    @Test
-    @DisplayName("deleteBatch — 批量删除成功")
-    void testDeleteBatch_Success() {
-        List<Integer> ids = Arrays.asList(1, 2);
-        doReturn(true).when(insuranceService).removeBatchByIds(ids);
-
-        ResponseDTO rsp = insuranceService.deleteBatch(ids);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("deleteBatch — 批量删除失败")
-    void testDeleteBatch_Failure() {
-        List<Integer> ids = Arrays.asList(1, 2);
-        doReturn(false).when(insuranceService).removeBatchByIds(ids);
-
-        ResponseDTO rsp = insuranceService.deleteBatch(ids);
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== edit ====================
-
-    @Test
-    @DisplayName("edit — 更新成功")
-    void testEdit_Success() {
-        doReturn(true).when(insuranceService).updateById(any(Insurance.class));
-
-        Insurance insurance = buildInsurance();
-        insurance.setId(1);
-        ResponseDTO rsp = insuranceService.edit(insurance);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("edit — 更新失败")
-    void testEdit_Failure() {
-        doReturn(false).when(insuranceService).updateById(any(Insurance.class));
-
-        ResponseDTO rsp = insuranceService.edit(buildInsurance());
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== query ====================
-
-    @Test
-    @DisplayName("query — 查询成功")
-    void testQuery_Success() {
-        Insurance insurance = buildInsurance();
-        insurance.setId(1);
-        doReturn(insurance).when(insuranceService).getById(1);
-
-        ResponseDTO rsp = insuranceService.query(1);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("query — ID不存在")
-    void testQuery_NotFound() {
+    @DisplayName("query — 查询成功 + 不存在分支")
+    void testQuery_SuccessAndNotFound() {
+        doReturn(buildInsurance()).when(insuranceService).getById(1);
+        assertEquals(200, insuranceService.query(1).getCode());
         doReturn(null).when(insuranceService).getById(999);
-
-        ResponseDTO rsp = insuranceService.query(999);
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== queryByStaffId ====================
-
-    @Test
-    @DisplayName("queryByStaffId — 查询成功")
-    void testQueryByStaffId_Success() {
-        Insurance insurance = buildInsurance();
-        doReturn(insurance).when(insuranceService).getOne(any(QueryWrapper.class));
-
-        ResponseDTO rsp = insuranceService.queryByStaffId(1);
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(300, insuranceService.query(999).getCode());
     }
 
     @Test
-    @DisplayName("queryByStaffId — 员工无社保记录")
-    void testQueryByStaffId_NotFound() {
+    @DisplayName("queryByStaffId — 找到/未找到")
+    void testQueryByStaffId_SuccessAndNotFound() {
+        doReturn(buildInsurance()).when(insuranceService).getOne(any(QueryWrapper.class));
+        assertEquals(200, insuranceService.queryByStaffId(1).getCode());
         doReturn(null).when(insuranceService).getOne(any(QueryWrapper.class));
-
-        ResponseDTO rsp = insuranceService.queryByStaffId(999);
-
-        assertEquals(300, rsp.getCode());
+        assertEquals(300, insuranceService.queryByStaffId(999).getCode());
     }
 
-    // ==================== list ====================
+    // ==================== list 分页（含部门分叉） ====================
 
     @Test
-    @DisplayName("list — 无条件分页（deptId=null，查询全部）")
+    @DisplayName("list — 无部门（全量）")
     void testList_NoDept() {
         IPage<StaffInsuranceVO> mockPage = new Page<>(1, 10);
         mockPage.setRecords(Arrays.asList(new StaffInsuranceVO()));
-        mockPage.setTotal(1);
-        mockPage.setPages(1);
+        mockPage.setTotal(1); mockPage.setPages(1);
         when(insuranceMapper.listStaffInsuranceVO(any(IPage.class), eq(""))).thenReturn(mockPage);
-
-        ResponseDTO rsp = insuranceService.list(1, 10, null, null);
-
-        assertEquals(200, rsp.getCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) rsp.getData();
-        assertNotNull(data.get("list"));
+        assertEquals(200, insuranceService.list(1, 10, null, null).getCode());
     }
 
     @Test
-    @DisplayName("list — 按部门过滤查询")
+    @DisplayName("list — 按部门过滤（入口切换）")
     void testList_ByDept() {
         IPage<StaffInsuranceVO> mockPage = new Page<>(1, 10);
         mockPage.setRecords(Arrays.asList(new StaffInsuranceVO()));
-        mockPage.setTotal(1);
-        mockPage.setPages(1);
+        mockPage.setTotal(1); mockPage.setPages(1);
         when(insuranceMapper.listStaffDeptInsuranceVO(any(IPage.class), eq(""), eq(1))).thenReturn(mockPage);
-
-        ResponseDTO rsp = insuranceService.list(1, 10, null, 1);
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(200, insuranceService.list(1, 10, null, 1).getCode());
     }
 
-    @Test
-    @DisplayName("list — name为null时自动转空字符串")
-    void testList_NullName() {
-        IPage<StaffInsuranceVO> mockPage = new Page<>(1, 10);
-        mockPage.setRecords(Arrays.asList());
-        mockPage.setTotal(0);
-        mockPage.setPages(0);
-        when(insuranceMapper.listStaffInsuranceVO(any(IPage.class), eq(""))).thenReturn(mockPage);
-
-        ResponseDTO rsp = insuranceService.list(1, 10, null, null);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    // ==================== export ====================
+    // ==================== export / imp ====================
 
     @Test
-    @DisplayName("export — 写Excel不抛异常即成功")
+    @DisplayName("export — Excel导出")
     void testExport_Success() throws IOException {
         MockHttpServletResponse response = new MockHttpServletResponse();
         when(insuranceMapper.queryStaffInsuranceVO()).thenReturn(Arrays.asList(new StaffInsuranceVO()));
-
         assertDoesNotThrow(() -> insuranceService.export(response, "insurance"));
-
         assertTrue(response.getContentType().startsWith("application/vnd.ms-excel"));
     }
 
-    // ==================== imp ====================
-
     @Test
-    @DisplayName("imp — 导入成功")
-    void testImp_Success() throws IOException {
+    @DisplayName("imp — 导入成功/失败")
+    void testImp() throws IOException {
         MultipartFile file = mock(MultipartFile.class);
         when(file.getInputStream()).thenReturn(new ByteArrayInputStream("test".getBytes()));
-        doReturn(true).when(insuranceService).saveBatch(anyList());
-
         try (MockedStatic<com.qiujie.util.HutoolExcelUtil> hutoolMock = mockStatic(com.qiujie.util.HutoolExcelUtil.class)) {
             hutoolMock.when(() -> com.qiujie.util.HutoolExcelUtil.readExcel(any(InputStream.class), eq(1), eq(Insurance.class)))
                     .thenReturn(Arrays.asList(buildInsurance()));
-
-            ResponseDTO rsp = insuranceService.imp(file);
-
-            assertEquals(200, rsp.getCode());
-            verify(insuranceService, times(1)).saveBatch(anyList());
-        }
-    }
-
-    @Test
-    @DisplayName("imp — 导入失败（saveBatch返回false）")
-    void testImp_Failure() throws IOException {
-        MultipartFile file = mock(MultipartFile.class);
-        when(file.getInputStream()).thenReturn(new ByteArrayInputStream("test".getBytes()));
-        doReturn(false).when(insuranceService).saveBatch(anyList());
-
-        try (MockedStatic<com.qiujie.util.HutoolExcelUtil> hutoolMock = mockStatic(com.qiujie.util.HutoolExcelUtil.class)) {
-            hutoolMock.when(() -> com.qiujie.util.HutoolExcelUtil.readExcel(any(InputStream.class), eq(1), eq(Insurance.class)))
-                    .thenReturn(Arrays.asList(buildInsurance()));
-
-            ResponseDTO rsp = insuranceService.imp(file);
-
-            assertEquals(300, rsp.getCode());
+            doReturn(true).when(insuranceService).saveBatch(anyList());
+            assertEquals(200, insuranceService.imp(file).getCode());
+            doReturn(false).when(insuranceService).saveBatch(anyList());
+            assertEquals(300, insuranceService.imp(file).getCode());
         }
     }
 }

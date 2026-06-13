@@ -1,0 +1,208 @@
+name: HRM CI - 集成测试
+
+# ============================================================
+# GitHub Actions CI 工作流
+# 触发条件：推送到 master/develop 分支 或 Pull Request
+# 环境要求：MySQL 8.0 + Java 17 + Maven
+# ============================================================
+
+on:
+  push:
+    branches: [master, develop, main, UT]
+  pull_request:
+    branches: [master, main]
+  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      test-type:
+        description: '测试类型 (all / integration-only / unit-only)'
+        required: false
+        default: 'all'
+
+env:
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_PORT: 3306
+  MYSQL_USER: root
+  MYSQL_PASSWORD: test123
+  MAVEN_OPTS: "-Xmx1024m -XX:MaxMetaspaceSize=256m"
+
+jobs:
+  # ============================================================
+  # Job 1: 集成测试
+  # ============================================================
+  integration-test:
+    name: "集成测试 (Java 17 + MySQL 8.0)"
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test123
+          MYSQL_DATABASE: hrm_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptest123"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --character-set-server=utf8mb4
+          --collation-server=utf8mb4_unicode_ci
+
+    steps:
+      # Step 1: 检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # Step 2: 设置 JDK 17
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # Step 3: 验证 MySQL 就绪
+      - name: 等待 MySQL 就绪
+        run: |
+          echo "正在等待 MySQL 启动..."
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -u root -ptest123 --silent; then
+              echo "MySQL 已就绪!"
+              break
+            fi
+            echo "等待中... ($i/30)"
+            sleep 2
+          done
+          # 创建 Activiti 数据库
+          mysql -h 127.0.0.1 -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          echo "数据库创建完成"
+
+      # Step 4: 初始化测试数据库表结构
+      - name: 初始化测试数据库表结构
+        run: |
+          mysql -h 127.0.0.1 -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
+          echo "测试数据库初始化完成"
+
+      # Step 5: 缓存 Maven 依赖
+      - name: 缓存 Maven 依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # Step 6: 运行集成测试
+      - name: 运行集成测试
+        run: |
+          cd hrm
+          mvn test \
+            -Dtest="com.qiujie.integration.*Test" \
+            -Dspring.profiles.active=test \
+            -DfailIfNoTests=false \
+            --batch-mode
+        timeout-minutes: 20
+
+      # Step 7: 生成覆盖率报告
+      - name: 生成 JaCoCo 覆盖率报告
+        if: always()
+        run: |
+          cd hrm
+          mvn jacoco:report --batch-mode
+
+      # Step 8: 上传测试报告
+      - name: 上传 Surefire 测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: |
+            hrm/target/surefire-reports/
+            hrm/target/site/jacoco/
+          retention-days: 30
+
+      # Step 9: 发布覆盖率摘要
+      - name: 发布 JaCoCo 覆盖率摘要
+        if: always()
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: hrm/target/site/jacoco/jacoco.csv
+          generate-coverage-badge: true
+          generate-branches-badge: true
+
+  # ============================================================
+  # Job 2: 全量测试 (含覆盖率)
+  # ============================================================
+  full-test:
+    name: "全量测试 + 覆盖率 (Java 17 + MySQL 8.0)"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test123
+          MYSQL_DATABASE: hrm_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptest123"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --character-set-server=utf8mb4
+          --collation-server=utf8mb4_unicode_ci
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 等待 MySQL 并初始化
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -u root -ptest123 --silent; then
+              echo "MySQL 已就绪!"; break
+            fi
+            sleep 2
+          done
+          mysql -h 127.0.0.1 -u root -ptest123 -e "CREATE DATABASE IF NOT EXISTS hrm_activiti_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -u root -ptest123 hrm_test < hrm/src/test/resources/init-test-db.sql
+
+      - name: 缓存 Maven 依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-full-${{ hashFiles('**/pom.xml') }}
+
+      - name: 运行全量测试
+        run: |
+          cd hrm
+          mvn test \
+            -Dspring.profiles.active=test \
+            -DfailIfNoTests=false \
+            --batch-mode
+        timeout-minutes: 25
+
+      - name: 生成 JaCoCo 覆盖率报告
+        if: always()
+        run: cd hrm && mvn jacoco:report --batch-mode
+
+      - name: 上传全量测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-test-reports
+          path: |
+            hrm/target/surefire-reports/
+            hrm/target/site/jacoco/
+          retention-days: 30

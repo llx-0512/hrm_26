@@ -8,6 +8,8 @@ import com.qiujie.entity.Insurance;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -313,276 +315,43 @@ class InsuranceControllerTest {
                 .andExpect(jsonPath("$.code").value(200));
     }
 
-    // ---------- 边界值 ----------
+    // ---------- 边界值（参数化：社保/公积金基数 + 比例上下限，均返回 200） ----------
 
-    @Test
-    @DisplayName("TC-INS-013: 社保基数 = 下限 9000")
+    @ParameterizedTest
+    @CsvSource({
+        "9000,    '15000', '0.05', '0.05',  '',   200",   // TC-INS-013: 社保下限
+        "45000,   '15000', '0.05', '0.05',  '',   200",   // TC-INS-014: 社保上限
+        "8999.99, '15000', '0.05', '0.05',  '',   200",   // TC-INS-015: 社保略低于下限
+        "45000.01,'15000', '0.05', '0.05',  '',   200",   // TC-INS-016: 社保略高于上限
+        "15000,   '10000', '0.05', '0.05',  '',   200",   // TC-INS-017: 公积金下限
+        "15000,   '45000', '0.05', '0.05',  '',   200",   // TC-INS-018: 公积金上限
+        "15000,   '9999.99','0.05','0.05',  '',   200",   // TC-INS-019: 公积金略低于下限
+        "15000,   '15000', '0.05', '0.05',  '',   200",   // TC-INS-020: 个人比例下边界 0.05
+        "15000,   '15000', '0.12', '0.05',  '',   200",   // TC-INS-021: 个人比例上边界 0.12
+        "15000,   '15000', '0.049','0.05',  '',   200",   // TC-INS-022: 个人比例略低于下边界
+        "15000,   '15000', '0.05', '0.05',  '0.002',200", // TC-INS-023: 工伤下边界 0.002
+        "15000,   '15000', '0.05', '0.05',  '0.019',200", // TC-INS-024: 工伤上边界 0.019
+        "15000,   '15000', '0.05', '0.05',  '0.001',200", // TC-INS-025: 工伤略低于下边界
+    })
     @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_SocialBaseAtLower() throws Exception {
-        // Given — socialBase=9000，刚好等于下限
+    void testSetInsurance_Boundaries(String socialBase, String houseBase,
+            String perRate, String comRate, String injuryRate, int expectedCode) throws Exception {
         Insurance insurance = new Insurance();
         insurance.setStaffId(EXISTING_STAFF_ID);
         insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("9000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
+        insurance.setSocialBase(new BigDecimal(socialBase));
+        insurance.setHouseBase(new BigDecimal(houseBase));
+        insurance.setPerHouseRate(new BigDecimal(perRate));
+        insurance.setComHouseRate(new BigDecimal(comRate));
+        if (!injuryRate.isEmpty()) {
+            insurance.setComInjuryRate(new BigDecimal(injuryRate));
+        }
 
-        // When & Then
         mockMvc.perform(post("/insurance/set")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(insurance)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-014: 社保基数 = 上限 45000")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_SocialBaseAtUpper() throws Exception {
-        // Given — socialBase=45000，刚好等于上限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("45000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-015: 社保基数 = 下限-0.01（8999.99）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_SocialBaseJustBelowLower() throws Exception {
-        // Given — socialBase=8999.99，刚好低于下限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("8999.99"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then — 服务层无业务校验
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-016: 社保基数 = 上限+0.01（45000.01）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_SocialBaseJustAboveUpper() throws Exception {
-        // Given — socialBase=45000.01，刚好高于上限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("45000.01"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then — 服务层无业务校验
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-017: 公积金基数 = 下限 10000")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_HouseBaseAtLower() throws Exception {
-        // Given — houseBase=10000，刚好等于下限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("10000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-018: 公积金基数 = 上限 45000")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_HouseBaseAtUpper() throws Exception {
-        // Given — houseBase=45000，刚好等于上限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("45000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-019: 公积金基数 = 下限-0.01（9999.99）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_HouseBaseJustBelowLower() throws Exception {
-        // Given — houseBase=9999.99，刚好低于下限
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("9999.99"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then — 服务层无业务校验
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-020: 公积金个人比例 = 0.05（下边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_PerHouseRateAtLower() throws Exception {
-        // Given — perHouseRate=0.05，刚好在下边界
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.05"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-021: 公积金个人比例 = 0.12（上边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_PerHouseRateAtUpper() throws Exception {
-        // Given — perHouseRate=0.12，刚好在上边界
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.12"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-022: 公积金个人比例 = 0.049（刚好低于下边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_PerHouseRateJustBelowLower() throws Exception {
-        // Given — perHouseRate=0.049，刚好低于 0.05
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setPerHouseRate(new BigDecimal("0.049"));
-        insurance.setComHouseRate(new BigDecimal("0.05"));
-
-        // When & Then — 服务层无业务校验
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-023: 工伤比例 = 0.002（下边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_ComInjuryRateAtLower() throws Exception {
-        // Given — comInjuryRate=0.002，刚好在下边界
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setComInjuryRate(new BigDecimal("0.002"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-024: 工伤比例 = 0.019（上边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_ComInjuryRateAtUpper() throws Exception {
-        // Given — comInjuryRate=0.019，刚好在上边界
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setComInjuryRate(new BigDecimal("0.019"));
-
-        // When & Then
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-INS-025: 工伤比例 = 0.001（刚好低于下边界）")
-    @WithMockUser(username = "admin", authorities = {"money:insurance:set"})
-    void testSetInsurance_ComInjuryRateJustBelowLower() throws Exception {
-        // Given — comInjuryRate=0.001，刚好低于 0.002
-        Insurance insurance = new Insurance();
-        insurance.setStaffId(EXISTING_STAFF_ID);
-        insurance.setCityId(EXISTING_CITY_ID);
-        insurance.setSocialBase(new BigDecimal("15000"));
-        insurance.setHouseBase(new BigDecimal("15000"));
-        insurance.setComInjuryRate(new BigDecimal("0.001"));
-
-        // When & Then — 服务层无业务校验
-        mockMvc.perform(post("/insurance/set")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(insurance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(jsonPath("$.code").value(expectedCode));
     }
 
     // ==================== 5.2 POST /insurance/import — 批量导入社保 ====================

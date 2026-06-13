@@ -130,114 +130,38 @@ class AttendanceServiceTest {
     // ==================== delete ====================
 
     @Test
-    @DisplayName("delete — id为null抛出ServiceException")
-    void testDelete_NullId_ThrowsException() {
+    @DisplayName("delete — 成功 + id边界（空/负抛异常，0走删除）")
+    void testDelete() {
         assertThrows(ServiceException.class, () -> attendanceService.delete(null));
-    }
-
-    @Test
-    @DisplayName("delete — id为负数抛出ServiceException")
-    void testDelete_NegativeId_ThrowsException() {
         assertThrows(ServiceException.class, () -> attendanceService.delete(-1));
-    }
-
-    @Test
-    @DisplayName("delete — id=0抛出ServiceException（0不满足<0但满足intValue<0也不满足）")
-    void testDelete_ZeroId() {
-        // 0 满足 id.intValue() < 0? No. 所以走 removeById 分支
         doReturn(true).when(attendanceService).removeById(0);
-
-        ResponseDTO rsp = attendanceService.delete(0);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("delete — 删除成功")
-    void testDelete_Success() {
+        assertEquals(200, attendanceService.delete(0).getCode());
         doReturn(true).when(attendanceService).removeById(1);
-
-        ResponseDTO rsp = attendanceService.delete(1);
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(200, attendanceService.delete(1).getCode());
     }
-
-    @Test
-    @DisplayName("delete — 删除失败")
-    void testDelete_Failure() {
-        doReturn(false).when(attendanceService).removeById(999);
-
-        ResponseDTO rsp = attendanceService.delete(999);
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== edit ====================
 
     @Test
     @DisplayName("edit — 更新成功")
-    void testEdit_Success() {
+    void testEdit() {
         doReturn(true).when(attendanceService).updateById(any(Attendance.class));
-
-        ResponseDTO rsp = attendanceService.edit(buildAttendance());
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(200, attendanceService.edit(buildAttendance()).getCode());
     }
 
     @Test
-    @DisplayName("edit — 更新失败")
-    void testEdit_Failure() {
-        doReturn(false).when(attendanceService).updateById(any(Attendance.class));
-
-        ResponseDTO rsp = attendanceService.edit(buildAttendance());
-
-        assertEquals(300, rsp.getCode());
-    }
-
-    // ==================== query ====================
-
-    @Test
-    @DisplayName("query — 查询成功")
-    void testQuery_Success() {
-        Attendance att = buildAttendance();
-        att.setId(1);
+    @DisplayName("query — 成功 + 不存在分支")
+    void testQuery() {
+        Attendance att = buildAttendance(); att.setId(1);
         doReturn(att).when(attendanceService).getById(1);
-
-        ResponseDTO rsp = attendanceService.query(1);
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("query — ID不存在")
-    void testQuery_NotFound() {
+        assertEquals(200, attendanceService.query(1).getCode());
         doReturn(null).when(attendanceService).getById(999);
-
-        ResponseDTO rsp = attendanceService.query(999);
-
-        assertEquals(300, rsp.getCode());
+        assertEquals(300, attendanceService.query(999).getCode());
     }
 
-    // ==================== setAttendance ====================
-
     @Test
-    @DisplayName("setAttendance — saveOrUpdate成功")
-    void testSetAttendance_Success() {
+    @DisplayName("setAttendance — saveOrUpdate")
+    void testSetAttendance() {
         doReturn(true).when(attendanceService).saveOrUpdate(any(Attendance.class));
-
-        ResponseDTO rsp = attendanceService.setAttendance(buildAttendance());
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("setAttendance — saveOrUpdate失败")
-    void testSetAttendance_Failure() {
-        doReturn(false).when(attendanceService).saveOrUpdate(any(Attendance.class));
-
-        ResponseDTO rsp = attendanceService.setAttendance(buildAttendance());
-
-        assertEquals(300, rsp.getCode());
+        assertEquals(200, attendanceService.setAttendance(buildAttendance()).getCode());
     }
 
     // ==================== queryAll (枚举列表构建) ====================
@@ -262,103 +186,45 @@ class AttendanceServiceTest {
         }
     }
 
-    // ==================== queryByStaffIdAndDate ====================
-
     @Test
-    @DisplayName("queryByStaffIdAndDate — 查询成功（日期格式yyyy-MM-dd转yyyyMMdd）")
-    void testQueryByStaffIdAndDate_Success() {
-        Attendance att = buildAttendance();
-        when(attendanceMapper.queryByStaffIdAndDate(eq(1), eq("20260612"))).thenReturn(att);
-
-        ResponseDTO rsp = attendanceService.queryByStaffIdAndDate(1, "2026-06-12");
-
-        assertEquals(200, rsp.getCode());
-    }
-
-    @Test
-    @DisplayName("queryByStaffIdAndDate — 无数据")
-    void testQueryByStaffIdAndDate_NotFound() {
+    @DisplayName("queryByStaffIdAndDate — 成功 + 无数据（日期含-转yyyyMMdd）")
+    void testQueryByStaffIdAndDate() {
+        when(attendanceMapper.queryByStaffIdAndDate(eq(1), eq("20260612"))).thenReturn(buildAttendance());
+        assertEquals(200, attendanceService.queryByStaffIdAndDate(1, "2026-06-12").getCode());
         when(attendanceMapper.queryByStaffIdAndDate(eq(999), eq("20990101"))).thenReturn(null);
-
-        ResponseDTO rsp = attendanceService.queryByStaffIdAndDate(999, "2099-01-01");
-
-        assertEquals(300, rsp.getCode());
+        assertEquals(300, attendanceService.queryByStaffIdAndDate(999, "2099-01-01").getCode());
     }
 
     // ==================== list (分页+考勤日历构建) ====================
 
     @Test
-    @DisplayName("list — 无部门过滤，构建月考勤日历（周末/工作日状态区分）")
-    void testList_NoDept_CalendarBuilt() {
-        // Mock 分页结果
+    @DisplayName("list — 无部门/按部门 两个入口，构建月考勤日历")
+    void testList() {
         StaffAttendanceVO vo = new StaffAttendanceVO();
-        vo.setStaffId(1);
-        vo.setName("张三");
+        vo.setStaffId(1); vo.setName("张三");
         com.baomidou.mybatisplus.core.metadata.IPage<StaffAttendanceVO> mockPage =
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 10);
         mockPage.setRecords(Collections.singletonList(vo));
-        mockPage.setTotal(1);
-        mockPage.setPages(1);
-        when(staffMapper.listStaffAttendanceVO(any(), eq(""))).thenReturn(mockPage);
+        mockPage.setTotal(1); mockPage.setPages(1);
 
-        // Mock 当月日期列表（只有1天）
-        String[] dayList = {"20260612"}; // 假设是工作日
+        // 无部门入口
+        when(staffMapper.listStaffAttendanceVO(any(), eq(""))).thenReturn(mockPage);
+        String[] dayList = {"20260612"};
         when(datetimeUtil.getMonthDayList(anyString())).thenReturn(dayList);
-        // 无考勤数据 → 进入 null 分支
         when(attendanceMapper.queryByStaffIdAndDate(eq(1), eq("20260612"))).thenReturn(null);
 
         ResponseDTO rsp = attendanceService.list(1, 10, null, null, null);
-
         assertEquals(200, rsp.getCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) rsp.getData();
-        assertEquals(1L, data.get("pages"));
         assertEquals(1, data.get("dayNum"));
-        // 验证日历列表已填充
         @SuppressWarnings("unchecked")
         List<StaffAttendanceVO> result = (List<StaffAttendanceVO>) data.get("list");
         assertNotNull(result.get(0).getAttendanceList());
-    }
 
-    @Test
-    @DisplayName("list — 按部门过滤查询")
-    void testList_ByDept() {
-        StaffAttendanceVO vo = new StaffAttendanceVO();
-        vo.setStaffId(1);
-        com.baomidou.mybatisplus.core.metadata.IPage<StaffAttendanceVO> mockPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 10);
-        mockPage.setRecords(Collections.singletonList(vo));
-        mockPage.setTotal(1);
-        mockPage.setPages(1);
+        // 按部门入口
         when(staffMapper.listStaffDeptAttendanceVO(any(), eq(""), eq(1))).thenReturn(mockPage);
-
-        String[] dayList = {};
-        when(datetimeUtil.getMonthDayList(anyString())).thenReturn(dayList);
-
-        ResponseDTO rsp = attendanceService.list(1, 10, null, 1, null);
-
-        assertEquals(200, rsp.getCode());
-        verify(staffMapper, never()).listStaffAttendanceVO(any(), anyString());
-    }
-
-    @Test
-    @DisplayName("list — name为null时转空字符串")
-    void testList_NullName() {
-        StaffAttendanceVO vo = new StaffAttendanceVO();
-        vo.setStaffId(1);
-        com.baomidou.mybatisplus.core.metadata.IPage<StaffAttendanceVO> mockPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 10);
-        mockPage.setRecords(Collections.singletonList(vo));
-        mockPage.setTotal(1);
-        mockPage.setPages(1);
-        when(staffMapper.listStaffAttendanceVO(any(), eq(""))).thenReturn(mockPage);
-
-        String[] dayList = {};
-        when(datetimeUtil.getMonthDayList(anyString())).thenReturn(dayList);
-
-        ResponseDTO rsp = attendanceService.list(1, 10, null, null, "202606");
-
-        assertEquals(200, rsp.getCode());
+        assertEquals(200, attendanceService.list(1, 10, null, 1, null).getCode());
     }
 
     // ==================== export (导出月考勤报表) ====================

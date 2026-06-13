@@ -1,0 +1,73 @@
+# ===================================================
+# CI 集成测试环境配置 (spring.profiles.active=test)
+# ===================================================
+spring:
+  datasource:
+    master:
+      jdbc-url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/hrm_test?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2b8
+      username: ${MYSQL_USER:test}
+      password: ${MYSQL_PASSWORD:test123}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      type: com.zaxxer.hikari.HikariDataSource
+    activiti:
+      jdbc-url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/hrm_activiti_test?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2b8
+      username: ${MYSQL_USER:test}
+      password: ${MYSQL_PASSWORD:test123}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      type: com.zaxxer.hikari.HikariDataSource
+
+  activiti:
+    database-schema-update: true
+    history-level: full
+    db-history-used: true
+
+  redis:
+    enabled: false  # CI 环境禁用 Redis
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:init-test-db.sql
+      continue-on-error: true
+
+  main:
+    allow-bean-definition-overriding: true
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  type-enums-package: com.qiujie.enums
+
+file-path: /tmp/hrm-test-files/
+
+holidays:
+  - 2024-01-01
+  - 2024-02-10
+  - 2024-02-11
+  - 2024-02-12
+  - 2024-02-13
+  - 2024-02-14
+  - 2024-02-15
+  - 2024-02-16
+  - 2024-02-17
+  - 2024-04-04
+  - 2024-04-05
+  - 2024-04-06
+  - 2024-05-01
+  - 2024-05-02
+  - 2024-05-03
+  - 2024-05-04
+  - 2024-05-05
+  - 2024-06-08
+  - 2024-06-09
+  - 2024-06-10
+  - 2024-09-15
+  - 2024-09-16
+  - 2024-09-17
+  - 2024-10-01
+  - 2024-10-02
+  - 2024-10-03
+  - 2024-10-04
+  - 2024-10-05
+  - 2024-10-06
+  - 2024-10-07

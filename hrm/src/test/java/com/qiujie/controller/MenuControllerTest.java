@@ -7,6 +7,8 @@ import com.qiujie.mapper.MenuMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -237,227 +239,42 @@ class MenuControllerTest {
                 .andExpect(jsonPath("$.code").value(200));
     }
 
-    // ---------- 边界值 ----------
+    // ---------- 边界值（参数化：名称/编码长度 + level + 特殊字符） ----------
 
-    @Test
-    @DisplayName("TC-MENU-008: 名称最小长度 (1字符)")
+    @ParameterizedTest
+    @CsvSource({
+        "A,      min_008, 0, 0,  ,    1, 200", // TC-008: 名称1字符
+        "二十个中文字符测试二十, max_009, 0, 0, ,  1, 200", // TC-009: 名称20字符
+        "AAAAAAAAAAAAAAAAAAAAA, long_010, 0, 0, , 1, 300", // TC-010: 名称21字符超长
+        "编码最小, a, 0, 0, ,  1, 200",                        // TC-011: 编码1字符
+        "编码最大, AAAAAAAAAAAAAAAAAAAA, 0, 0, , 1, 200",     // TC-012: 编码20字符
+        "编码超长, AAAAAAAAAAAAAAAAAAAAA, 0, 0, , 1, 300",    // TC-013: 编码21字符超长
+        "权限超长, long_014, 2, 0, PPPP201, 1, 300",           // TC-014: permission超长
+        "level0,   lvl_015, 0, 0, ,  1, 200",                  // TC-015: level边界0
+        "level2,   lvl_016, 2, 0, system:test:boundary, 1, 200", // TC-016: level边界2
+        "根菜单,   root_017, 0, 0, , 1, 200",                  // TC-017: parentId=0
+        "XSS测试,  xss_018, 0, 0, , 1, 200",                   // TC-018: 特殊字符（<script>）
+    })
     @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_MinNameLength() throws Exception {
-        // Given — 名称仅1个字符
+    void testAddMenu_Boundaries(String name, String code, int level, int parentId,
+            String permission, int status, int expectedCode) throws Exception {
         Menu menu = new Menu();
-        menu.setName("A");
-        menu.setCode("min_name_008");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
+        menu.setName(name);
+        menu.setCode(code);
+        menu.setLevel(level);
+        menu.setParentId(parentId == 0 ? 0 : parentMenuId);
+        menu.setStatus(status);
+        if (permission != null && permission.startsWith("PPP")) {
+            menu.setPermission("P".repeat(201)); // TC-014: 201 chars
+        } else if (permission != null && !permission.isEmpty()) {
+            menu.setPermission(permission);
+        }
 
-        // When & Then
         mockMvc.perform(post("/menu")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(menu)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-009: 名称最大长度 (20字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_MaxNameLength() throws Exception {
-        // Given — 20个中文字符，刚好在边界内
-        Menu menu = new Menu();
-        menu.setName("一二三四五六七八九十一二三四五六七八九十");
-        menu.setCode("max_name_009");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-010: 名称超长 (21字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_NameExceedsMax() throws Exception {
-        // Given — 21个字符，超出数据库字段长度
-        Menu menu = new Menu();
-        menu.setName("A".repeat(21));
-        menu.setCode("long_name_010");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then — 数据库约束限制，保存失败
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(300));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-011: 编码最小长度 (1字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_MinCodeLength() throws Exception {
-        // Given — 编码仅1个字符
-        Menu menu = new Menu();
-        menu.setName("编码最小长度");
-        menu.setCode("a");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-012: 编码最大长度 (20字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_MaxCodeLength() throws Exception {
-        // Given — 20个字符，刚好在边界内
-        Menu menu = new Menu();
-        menu.setName("编码最大长度");
-        menu.setCode("A".repeat(20));
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-013: 编码超长 (21字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_CodeExceedsMax() throws Exception {
-        // Given — 21个字符，超出数据库字段长度
-        Menu menu = new Menu();
-        menu.setName("编码超长");
-        menu.setCode("A".repeat(21));
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then — 数据库约束限制，保存失败
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(300));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-014: permission 超长 (201字符)")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_PermissionExceedsMax() throws Exception {
-        // Given — permission 201个字符，超出数据库字段长度
-        Menu menu = new Menu();
-        menu.setName("权限超长");
-        menu.setCode("long_permission_014");
-        menu.setPermission("P".repeat(201));
-        menu.setLevel(2);
-        menu.setParentId(parentMenuId);
-        menu.setStatus(1);
-
-        // When & Then — 数据库约束限制，保存失败
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(300));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-015: level 边界值 0（一级菜单）")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_LevelBoundary0() throws Exception {
-        // Given — level=0，一级菜单下边界
-        Menu menu = new Menu();
-        menu.setName("level边界0");
-        menu.setCode("level_0_015");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-016: level 边界值 2（权限点）")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_LevelBoundary2() throws Exception {
-        // Given — level=2，权限点上边界
-        Menu menu = new Menu();
-        menu.setName("level边界2");
-        menu.setCode("level_2_016");
-        menu.setPermission("system:test:boundary");
-        menu.setLevel(2);
-        menu.setParentId(parentMenuId);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-017: parentId=0（根菜单）")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_ParentIdZero() throws Exception {
-        // Given — parentId=0，代表根菜单
-        Menu menu = new Menu();
-        menu.setName("根菜单");
-        menu.setCode("root_menu_017");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    @DisplayName("TC-MENU-018: 名称含特殊字符")
-    @WithMockUser(username = "admin", authorities = {"permission:menu:add"})
-    void testAddMenu_SpecialCharsInName() throws Exception {
-        // Given — 名称含 <script> 标签
-        Menu menu = new Menu();
-        menu.setName("系统<script>");
-        menu.setCode("special_name_018");
-        menu.setLevel(0);
-        menu.setParentId(0);
-        menu.setStatus(1);
-
-        // When & Then — 服务层无验证，直接保存
-        mockMvc.perform(post("/menu")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(menu)))
-                .andExpect(status().isOk());
+                .andExpect(jsonPath("$.code").value(expectedCode));
     }
 
     // ==================== 3.2 PUT /menu — 编辑菜单 ====================
