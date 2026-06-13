@@ -31,7 +31,7 @@ class OrganizationIntegrationTest extends BaseIntegrationTest {
     @WithMockUser(authorities = {"system:department:add", "system:staff:add", "system:staff:set_role"})
     void testDepartmentStaffRoleFlow() throws Exception {
         // Step 1: 新建部门 (add API 返回 data=true)
-        Dept dept = TestDataFactory.createDefaultDept("技术部", 0);
+        Dept dept = TestDataFactory.createDefaultDept("集成测试-技术部-" + System.currentTimeMillis(), 0);
         mockMvc.perform(post("/dept")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dept)))
@@ -65,7 +65,7 @@ class OrganizationIntegrationTest extends BaseIntegrationTest {
     @DisplayName("INT-ORG-002: 逻辑删除部门后员工记录保留")
     @WithMockUser(authorities = {"system:department:add", "system:department:delete"})
     void testDeleteDepartment_StaffRecordsPreserved() throws Exception {
-        Dept dept = TestDataFactory.createDefaultDept("测试部门", 0);
+        Dept dept = TestDataFactory.createDefaultDept("测试部门-" + System.currentTimeMillis(), 0);
         mockMvc.perform(post("/dept")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dept)))

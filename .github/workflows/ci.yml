@@ -140,7 +140,7 @@ jobs:
   # Job 2: 全量测试（含覆盖率）
   # ============================================================
   full-test:
-    name: "全量测试 + 覆盖率 (Java 17 + MySQL 8.0)"
+    name: "集成测试 + 覆盖率 (Java 17 + MySQL 8.0)"
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
@@ -194,10 +194,11 @@ jobs:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-full-${{ hashFiles('**/pom.xml') }}
 
-      - name: 运行全量测试
+      - name: 运行全量集成测试
         run: |
           cd hrm
           mvn test \
+            -Dtest="com.qiujie.integration.*Test" \
             -Dspring.profiles.active=test \
             -DfailIfNoTests=false \
             --batch-mode
