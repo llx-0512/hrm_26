@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config version="15.0.4">
+  <sessions>
+    <session id="100" name="远程应用程序 on Avalon" type="remote" host="Avalon">
+      <filters>
+        <group type="exclusive" name="Default excludes" template="defaultExcludes" />
+      </filters>
+    </session>
+  </sessions>
+</config>

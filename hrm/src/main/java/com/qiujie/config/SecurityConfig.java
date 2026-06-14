@@ -64,7 +64,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.authorizeRequests()
-                .antMatchers("/login/**","/validate/code").permitAll() // 登录接口，验证码接口放行
+                .antMatchers("/login/**","/validate/code","/test/**").permitAll() // 登录接口，验证码接口放行
                 //放行swagger
                 .antMatchers("/swagger-ui.html/**", "/swagger-resources/**", "/webjars/**", "/v2/**").permitAll()
                 //放行头像下载（无需权限）

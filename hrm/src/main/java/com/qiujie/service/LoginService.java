@@ -65,6 +65,16 @@ public class LoginService extends ServiceImpl<StaffMapper, Staff> {
         return Response.success(staffDeptVO, token);
     }
 
+    public ResponseDTO testLogin(Staff staff) {
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
+                new UsernamePasswordAuthenticationToken(staff.getCode(), staff.getPassword());
+        Authentication authenticate = authenticationManager.authenticate(usernamePasswordAuthenticationToken);
+        StaffDetails staffDetails = (StaffDetails) authenticate.getPrincipal();
+        String token = JwtUtil.generateToken(staffDetails);
+        StaffDeptVO staffDeptVO = this.staffMapper.queryByCode(staffDetails.getUsername());
+        return Response.success(staffDeptVO, token);
+    }
+
     public void getValidateCode(HttpServletResponse response) throws IOException {
         ValidateCode validateCode = ValidateCodeUtil.generateValidateCode();
         redisUtil.set("validate:code", validateCode.getCode());

@@ -33,4 +33,9 @@ public class LoginController {
     public void getValidateCode(HttpServletResponse response) throws IOException {
         this.loginService.getValidateCode(response);
     }
+
+    @PostMapping("/test/login")
+    public ResponseDTO testLogin(@RequestBody Staff staff) {
+        return this.loginService.testLogin(staff);
+    }
 }
